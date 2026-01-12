@@ -1,0 +1,8 @@
+{
+    "maxParentTraversalDepth": 20,
+    "maxFileReadRetries": 5,
+    "fileReadRetryDelayMs": 150,
+    "maxSnapshotFileSizeBytes": 10485760,
+    "verboseLogging": false,
+    "minRestoreIntervalMs": 1000
+}

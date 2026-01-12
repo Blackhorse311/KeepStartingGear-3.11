@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Compiled output (keep src/mod.js for distribution)
+*.map
+types/**/*.js
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build artifacts
+dist/
+*.zip
+Release/
+
+# Coverage reports
+coverage/
+
+# Test artifacts
+*.log
+
+# Claude Code settings
+.claude/
+
+# SPT base installation (testers have their own)
+SPT 3.11.4/
+
+# Build output folder (separate from source)
+build-3.11.4/

@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Compiled output (keep src/mod.js for distribution)
+*.map
+types/**/*.js
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build artifacts
+dist/
+*.zip

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: SPT 4.0+ Version
+    url: https://github.com/Blackhorse311/KeepStartingGear
+    about: For issues with the SPT 4.0+ version, please use the main repository
+  - name: SPT Discord
+    url: https://discord.gg/spt
+    about: For general SPT help and community support

@@ -1,0 +1,95 @@
+================================================================================
+                    KEEP STARTING GEAR - INSTALLATION GUIDE
+                              SPT 3.11.x Version
+================================================================================
+
+REQUIREMENTS
+------------
+- SPT 3.11.x (tested on 3.11.4)
+- Client-side BepInEx mod (creates gear snapshots at raid start)
+
+
+INSTALLATION
+------------
+
+1. Extract the archive to your SPT root folder (where SPT.Server.exe is located)
+
+2. Verify the folder structure looks like this:
+
+   [SPT Root]/
+   ├── BepInEx/
+   │   └── plugins/
+   │       └── Blackhorse311-KeepStartingGear/
+   │           ├── Blackhorse311.KeepStartingGear.dll  (client mod)
+   │           └── snapshots/                          (created automatically)
+   └── user/
+       └── mods/
+           └── Blackhorse311-KeepStartingGear/
+               ├── package.json
+               ├── config.json                          (optional - for customization)
+               └── src/
+                   ├── mod.js
+                   ├── Constants.js
+                   ├── Models.js
+                   └── SnapshotRestorer.js
+
+3. Start the SPT server and launcher as normal
+
+
+CONFIGURATION (OPTIONAL)
+------------------------
+
+Edit `config.json` in the mod folder to customize behavior:
+
+{
+    "maxParentTraversalDepth": 20,      // Max depth for tracing item parents
+    "maxFileReadRetries": 5,            // Retry attempts for file reading
+    "fileReadRetryDelayMs": 150,        // Delay between retries (ms)
+    "maxSnapshotFileSizeBytes": 10485760,  // Max snapshot size (10MB)
+    "verboseLogging": false,            // Enable detailed debug logging
+    "minRestoreIntervalMs": 1000        // Rate limit between restores (ms)
+}
+
+
+VERIFYING INSTALLATION
+----------------------
+
+1. Start the SPT server
+2. Look for this message in the server console:
+
+   [KeepStartingGear] v1.1.0 loaded
+   [KeepStartingGear] Snapshots path: [path to snapshots folder]
+
+3. Start a raid - the client mod should show a green notification
+
+
+TROUBLESHOOTING
+---------------
+
+Problem: Mod not loading
+Solution: Ensure package.json exists in user/mods/Blackhorse311-KeepStartingGear/
+
+Problem: Gear not restoring on death
+Solution: Verify BOTH client (BepInEx) and server (user/mods) components are installed
+
+Problem: "No snapshot file found" in logs
+Solution: The client mod isn't creating snapshots - check BepInEx console for errors
+
+Problem: Version mismatch errors
+Solution: Update both client and server mods to matching versions
+
+
+UNINSTALLATION
+--------------
+
+1. Delete: user/mods/Blackhorse311-KeepStartingGear/
+2. Delete: BepInEx/plugins/Blackhorse311-KeepStartingGear/
+
+
+SUPPORT
+-------
+
+For bug reports and issues:
+https://github.com/Blackhorse311/KeepStartingGear/issues
+
+================================================================================

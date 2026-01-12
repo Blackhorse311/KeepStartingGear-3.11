@@ -1,0 +1,138 @@
+name: Bug Report
+description: Report an issue with KeepStartingGear for SPT 3.11.4
+title: "[BUG] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please fill out the form below to help us diagnose and fix the problem.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      description: Please confirm the following before submitting
+      options:
+        - label: I am using SPT version 3.11.x (NOT 4.0 or higher)
+          required: true
+        - label: I have enabled `verboseLogging` in config.json to get detailed logs
+          required: true
+        - label: I have checked that this issue hasn't already been reported
+          required: true
+
+  - type: input
+    id: spt-version
+    attributes:
+      label: SPT Version
+      description: What exact SPT version are you using?
+      placeholder: "e.g., 3.11.4"
+    validations:
+      required: true
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: Mod Version
+      description: What version of KeepStartingGear are you using?
+      placeholder: "e.g., 1.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: Describe what happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Describe what you expected...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Die in raid with '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: death-type
+    attributes:
+      label: Death Type (if applicable)
+      description: How did your PMC die?
+      options:
+        - Killed by AI
+        - Killed by player
+        - Killed by boss
+        - MIA (Missing in Action)
+        - Run Through
+        - Left (Extracted early)
+        - N/A - Bug not related to death
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server Logs
+      description: |
+        Please provide the relevant section of your server console logs.
+        Look for lines containing `[KeepStartingGear]`.
+
+        **IMPORTANT**: Enable `verboseLogging: true` in config.json and reproduce the bug to get detailed logs!
+      placeholder: |
+        [KeepStartingGear] v1.1.0 loaded successfully
+        [KeepStartingGear] Processing raid end for session abc123
+        [KeepStartingGear] Error: ...
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Your config.json
+      description: Please paste your config.json contents (from the mod folder)
+      placeholder: |
+        {
+            "maxParentTraversalDepth": 20,
+            "maxFileReadRetries": 5,
+            ...
+        }
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: other-mods
+    attributes:
+      label: Other Mods Installed
+      description: List any other mods you have installed that might interact with inventory or gear
+      placeholder: |
+        - SomeOtherMod v1.0
+        - AnotherMod v2.3
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, or information about the problem here
+    validations:
+      required: false
