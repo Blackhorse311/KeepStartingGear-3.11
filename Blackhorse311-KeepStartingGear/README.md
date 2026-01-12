@@ -276,4 +276,71 @@ Please include:
 - Server console log
 - Client log: `BepInEx/LogOutput.log`
 
-Report issues at: https://github.com/Blackhorse311/KeepStartingGear/issues
+**SPT 3.11.x Issues:** https://github.com/Blackhorse311/KeepStartingGear-3.11/issues
+**SPT 4.0+ Issues:** https://github.com/Blackhorse311/KeepStartingGear/issues
+
+---
+
+## For Testers
+
+Thank you for helping test KeepStartingGear! Here's how to provide the best bug reports:
+
+### Before Testing
+
+1. **Enable verbose logging** in `config.json`:
+   ```json
+   {
+       "verboseLogging": true
+   }
+   ```
+
+2. **Back up your profile** before testing (in case anything goes wrong)
+
+### How to Capture Good Logs
+
+1. Start SPT Server and note the console output
+2. Play a raid and trigger the scenario you're testing
+3. After the raid ends, copy the **entire server console output** containing `[KeepStartingGear]` lines
+
+### What to Include in Bug Reports
+
+Use our [issue template](https://github.com/Blackhorse311/KeepStartingGear-3.11/issues/new?template=bug_report.yml) and provide:
+
+- **Exact SPT version** (e.g., 3.11.4)
+- **Exact mod version** (check server log for `[KeepStartingGear] v1.1.0 loaded`)
+- **Your config.json** contents
+- **Full server log** with `[KeepStartingGear]` messages
+- **Steps to reproduce** the issue
+- **Expected vs actual behavior**
+- **Other mods installed** (especially inventory/gear mods)
+
+### Common Test Scenarios
+
+Please test these scenarios and report any issues:
+
+| Scenario | Expected Result |
+|----------|-----------------|
+| Die to AI scav | Gear restored |
+| Die to boss | Gear restored |
+| MIA (timer expires) | Gear restored |
+| Extract successfully | Keep raid loot, snapshot cleared |
+| Run-through | Keep raid loot, snapshot cleared |
+| Disconnect mid-raid | Gear restored |
+| Die as Scav | **No restoration** (Scav deaths not tracked) |
+
+### Log Messages to Look For
+
+**Success indicators:**
+```
+[KeepStartingGear] v1.1.0 loaded successfully
+[KeepStartingGear] Snapshots path: ...
+[KeepStartingGear] Processing raid end for session ...
+[KeepStartingGear] Restoration successful: X items added
+```
+
+**Error indicators (please report these):**
+```
+[KeepStartingGear] Error: ...
+[KeepStartingGear] Failed to ...
+[KeepStartingGear] Warning: ...
+```
