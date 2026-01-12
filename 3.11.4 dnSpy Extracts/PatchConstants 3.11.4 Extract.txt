@@ -1,0 +1,114 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Comfort.Common;
+using EFT;
+using FilesChecker;
+
+namespace SPT.Reflection.Utils
+{
+	// Token: 0x02000006 RID: 6
+	public static class PatchConstants
+	{
+		// Token: 0x17000001 RID: 1
+		// (get) Token: 0x06000005 RID: 5 RVA: 0x0000207A File Offset: 0x0000027A
+		// (set) Token: 0x06000006 RID: 6 RVA: 0x00002081 File Offset: 0x00000281
+		public static BindingFlags PrivateFlags { get; private set; } = BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.NonPublic;
+
+		// Token: 0x17000002 RID: 2
+		// (get) Token: 0x06000007 RID: 7 RVA: 0x00002089 File Offset: 0x00000289
+		// (set) Token: 0x06000008 RID: 8 RVA: 0x00002090 File Offset: 0x00000290
+		public static BindingFlags PublicFlags { get; private set; } = BindingFlags.Instance | BindingFlags.Public;
+
+		// Token: 0x17000003 RID: 3
+		// (get) Token: 0x06000009 RID: 9 RVA: 0x00002098 File Offset: 0x00000298
+		// (set) Token: 0x0600000A RID: 10 RVA: 0x0000209F File Offset: 0x0000029F
+		public static BindingFlags PublicDeclaredFlags { get; private set; } = BindingFlags.DeclaredOnly | BindingFlags.Instance | BindingFlags.Public;
+
+		// Token: 0x17000004 RID: 4
+		// (get) Token: 0x0600000B RID: 11 RVA: 0x000020A7 File Offset: 0x000002A7
+		// (set) Token: 0x0600000C RID: 12 RVA: 0x000020AE File Offset: 0x000002AE
+		public static Type[] EftTypes { get; private set; } = typeof(AbstractGame).Assembly.GetTypes();
+
+		// Token: 0x17000005 RID: 5
+		// (get) Token: 0x0600000D RID: 13 RVA: 0x000020B6 File Offset: 0x000002B6
+		// (set) Token: 0x0600000E RID: 14 RVA: 0x000020BD File Offset: 0x000002BD
+		public static Type[] FilesCheckerTypes { get; private set; } = typeof(ICheckResult).Assembly.GetTypes();
+
+		// Token: 0x17000006 RID: 6
+		// (get) Token: 0x0600000F RID: 15 RVA: 0x000020C5 File Offset: 0x000002C5
+		// (set) Token: 0x06000010 RID: 16 RVA: 0x000020CC File Offset: 0x000002CC
+		public static Type LocalGameType { get; private set; } = PatchConstants.EftTypes.SingleCustom((Type x) => x.Name == "LocalGame");
+
+		// Token: 0x17000007 RID: 7
+		// (get) Token: 0x06000011 RID: 17 RVA: 0x000020D4 File Offset: 0x000002D4
+		// (set) Token: 0x06000012 RID: 18 RVA: 0x000020DB File Offset: 0x000002DB
+		public static Type ExfilPointManagerType { get; private set; } = PatchConstants.EftTypes.SingleCustom((Type x) => x.GetMethod("InitAllExfiltrationPoints") != null);
+
+		// Token: 0x17000008 RID: 8
+		// (get) Token: 0x06000013 RID: 19 RVA: 0x000020E3 File Offset: 0x000002E3
+		// (set) Token: 0x06000014 RID: 20 RVA: 0x000020EA File Offset: 0x000002EA
+		public static Type SessionInterfaceType { get; private set; } = PatchConstants.EftTypes.SingleCustom((Type x) => Enumerable.Contains<string>(Enumerable.Select<MethodInfo, string>(x.GetMethods(), (MethodInfo y) => y.Name), "GetPhpSessionId") && x.IsInterface);
+
+		// Token: 0x17000009 RID: 9
+		// (get) Token: 0x06000015 RID: 21 RVA: 0x000020F2 File Offset: 0x000002F2
+		// (set) Token: 0x06000016 RID: 22 RVA: 0x000020F9 File Offset: 0x000002F9
+		public static Type BackendSessionInterfaceType { get; private set; } = PatchConstants.EftTypes.SingleCustom((Type x) => Enumerable.Contains<string>(Enumerable.Select<MethodInfo, string>(x.GetMethods(), (MethodInfo y) => y.Name), "ChangeProfileStatus") && x.IsInterface);
+
+		// Token: 0x1700000A RID: 10
+		// (get) Token: 0x06000017 RID: 23 RVA: 0x00002101 File Offset: 0x00000301
+		// (set) Token: 0x06000018 RID: 24 RVA: 0x00002108 File Offset: 0x00000308
+		public static Type BackendProfileInterfaceType { get; private set; } = PatchConstants.EftTypes.SingleCustom(delegate(Type x)
+		{
+			if (x.GetMethods().Length == 2)
+			{
+				if (Enumerable.Contains<string>(Enumerable.Select<MethodInfo, string>(x.GetMethods(), (MethodInfo y) => y.Name), "get_Profile"))
+				{
+					return x.IsInterface;
+				}
+			}
+			return false;
+		});
+
+		// Token: 0x1700000B RID: 11
+		// (get) Token: 0x06000019 RID: 25 RVA: 0x00002110 File Offset: 0x00000310
+		public static ISession BackEndSession
+		{
+			get
+			{
+				if (PatchConstants._backEndSession == null)
+				{
+					PatchConstants._backEndSession = Singleton<ClientApplication<ISession>>.Instance.GetClientBackEndSession();
+				}
+				return PatchConstants._backEndSession;
+			}
+		}
+
+		// Token: 0x0600001B RID: 27 RVA: 0x00002220 File Offset: 0x00000420
+		public static T SingleCustom<T>(this IEnumerable<T> types, Func<T, bool> predicate) where T : MemberInfo
+		{
+			if (types == null)
+			{
+				throw new ArgumentNullException("types");
+			}
+			if (predicate == null)
+			{
+				throw new ArgumentNullException("predicate");
+			}
+			T[] array = Enumerable.ToArray<T>(Enumerable.Where<T>(types, predicate));
+			if (array.Length > 1)
+			{
+				throw new InvalidOperationException("More than one member matches the specified search pattern: " + string.Join(", ", Enumerable.Select<T, string>(array, (T t) => t.Name)));
+			}
+			if (array.Length == 0)
+			{
+				throw new InvalidOperationException("No members match the specified search pattern");
+			}
+			return array[0];
+		}
+
+		// Token: 0x0400000F RID: 15
+		private static ISession _backEndSession;
+	}
+}

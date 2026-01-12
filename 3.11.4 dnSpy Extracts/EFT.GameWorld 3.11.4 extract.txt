@@ -1,0 +1,2944 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
+using Comfort.Common;
+using Diz.LanguageExtensions;
+using EFT.AssetsManager;
+using EFT.Ballistics;
+using EFT.CameraControl;
+using EFT.Game.Spawning;
+using EFT.GameTriggers;
+using EFT.Interactive;
+using EFT.InventoryLogic;
+using EFT.MovingPlatforms;
+using EFT.NextObservedPlayer;
+using EFT.SynchronizableObjects;
+using JetBrains.Annotations;
+using Systems.Effects;
+using UnityEngine;
+
+namespace EFT
+{
+	// Token: 0x02001476 RID: 5238
+	[\uE32C(-2000)]
+	public abstract class GameWorld : MonoBehaviour, \uE71B, IPlayersCollection, IEnumerable<IPlayer>, IEnumerable, IDisposable, \uEB2A
+	{
+		// Token: 0x060083D9 RID: 33753 RVA: 0x002B3924 File Offset: 0x002B1B24
+		public static TGameWorld Create<TGameWorld>(GameObject gameObject, \uE90C objectsFactory, EUpdateQueue updateQueue, MongoID? currentProfileId) where TGameWorld : GameWorld
+		{
+			TGameWorld tgameWorld = gameObject.AddComponent<TGameWorld>();
+			tgameWorld.ObjectsFactory = objectsFactory;
+			tgameWorld.\uE021 = updateQueue;
+			tgameWorld.SpeakerManager = gameObject.AddComponent<SpeakerManager>();
+			tgameWorld.ExfiltrationController = new \uE693();
+			tgameWorld.BufferZoneController = new \uF026();
+			tgameWorld.CurrentProfileId = currentProfileId;
+			tgameWorld.UnityTickListener = GameWorldUnityTickListener.Create(gameObject, tgameWorld);
+			tgameWorld.AudioSourceCulling = gameObject.GetOrAddComponent<AudioSourceCulling>();
+			return tgameWorld;
+		}
+
+		// Token: 0x14000160 RID: 352
+		// (add) Token: 0x060083DA RID: 33754 RVA: 0x002B39D0 File Offset: 0x002B1BD0
+		// (remove) Token: 0x060083DB RID: 33755 RVA: 0x002B3A10 File Offset: 0x002B1C10
+		public static event Action OnDispose
+		{
+			[CompilerGenerated]
+			add
+			{
+				Action action = GameWorld.\uE000;
+				Action action2;
+				do
+				{
+					action2 = action;
+					Action value2 = (Action)Delegate.Combine(action2, value);
+					action = Interlocked.CompareExchange<Action>(ref GameWorld.\uE000, value2, action2);
+				}
+				while (action != action2);
+			}
+			[CompilerGenerated]
+			remove
+			{
+				Action action = GameWorld.\uE000;
+				Action action2;
+				do
+				{
+					action2 = action;
+					Action value2 = (Action)Delegate.Remove(action2, value);
+					action = Interlocked.CompareExchange<Action>(ref GameWorld.\uE000, value2, action2);
+				}
+				while (action != action2);
+			}
+		}
+
+		// Token: 0x17001245 RID: 4677
+		// (get) Token: 0x060083DC RID: 33756 RVA: 0x002B3A50 File Offset: 0x002B1C50
+		// (set) Token: 0x060083DD RID: 33757 RVA: 0x002B3A58 File Offset: 0x002B1C58
+		[CanBeNull]
+		public \uE791 TransitController { get; set; }
+
+		// Token: 0x17001246 RID: 4678
+		// (get) Token: 0x060083DE RID: 33758 RVA: 0x002B3A64 File Offset: 0x002B1C64
+		// (set) Token: 0x060083DF RID: 33759 RVA: 0x002B3A6C File Offset: 0x002B1C6C
+		[CanBeNull]
+		public \uE916 RunddansController { get; set; }
+
+		// Token: 0x17001247 RID: 4679
+		// (get) Token: 0x060083E0 RID: 33760 RVA: 0x002B3A78 File Offset: 0x002B1C78
+		// (set) Token: 0x060083E1 RID: 33761 RVA: 0x002B3A80 File Offset: 0x002B1C80
+		public \uE693 ExfiltrationController { get; set; }
+
+		// Token: 0x17001248 RID: 4680
+		// (get) Token: 0x060083E2 RID: 33762 RVA: 0x002B3A8C File Offset: 0x002B1C8C
+		// (set) Token: 0x060083E3 RID: 33763 RVA: 0x002B3A94 File Offset: 0x002B1C94
+		public \uF026 BufferZoneController { get; set; }
+
+		// Token: 0x17001249 RID: 4681
+		// (get) Token: 0x060083E4 RID: 33764 RVA: 0x002B3AA0 File Offset: 0x002B1CA0
+		// (set) Token: 0x060083E5 RID: 33765 RVA: 0x002B3AA8 File Offset: 0x002B1CA8
+		public \uE793 HalloweenEventController { get; set; }
+
+		// Token: 0x1700124A RID: 4682
+		// (get) Token: 0x060083E6 RID: 33766 RVA: 0x002B3AB4 File Offset: 0x002B1CB4
+		// (set) Token: 0x060083E7 RID: 33767 RVA: 0x002B3ABC File Offset: 0x002B1CBC
+		internal \uE39F \uE02D { get; set; }
+
+		// Token: 0x1700124B RID: 4683
+		// (get) Token: 0x060083E8 RID: 33768 RVA: 0x002B3AC8 File Offset: 0x002B1CC8
+		// (set) Token: 0x060083E9 RID: 33769 RVA: 0x002B3AD0 File Offset: 0x002B1CD0
+		public \uEFC1 BtrController { get; set; }
+
+		// Token: 0x1700124C RID: 4684
+		// (get) Token: 0x060083EA RID: 33770 RVA: 0x002B3ADC File Offset: 0x002B1CDC
+		// (set) Token: 0x060083EB RID: 33771 RVA: 0x002B3AE4 File Offset: 0x002B1CE4
+		public TriggersModule TriggersModule { get; set; }
+
+		// Token: 0x1700124D RID: 4685
+		// (get) Token: 0x060083EC RID: 33772 RVA: 0x002B3AF0 File Offset: 0x002B1CF0
+		// (set) Token: 0x060083ED RID: 33773 RVA: 0x002B3AF8 File Offset: 0x002B1CF8
+		public \uF003 TriggersEmitter { get; set; }
+
+		// Token: 0x1700124E RID: 4686
+		// (get) Token: 0x060083EE RID: 33774 RVA: 0x002B3B04 File Offset: 0x002B1D04
+		// (set) Token: 0x060083EF RID: 33775 RVA: 0x002B3B0C File Offset: 0x002B1D0C
+		public \uE354 SyncModule { get; set; }
+
+		// Token: 0x1700124F RID: 4687
+		// (get) Token: 0x060083F0 RID: 33776 RVA: 0x002B3B18 File Offset: 0x002B1D18
+		// (set) Token: 0x060083F1 RID: 33777 RVA: 0x002B3B20 File Offset: 0x002B1D20
+		public \uE300 ServerShellingController { get; set; }
+
+		// Token: 0x17001250 RID: 4688
+		// (get) Token: 0x060083F2 RID: 33778 RVA: 0x002B3B2C File Offset: 0x002B1D2C
+		// (set) Token: 0x060083F3 RID: 33779 RVA: 0x002B3B34 File Offset: 0x002B1D34
+		public \uE6A0 ClientShellingController { get; set; }
+
+		// Token: 0x17001251 RID: 4689
+		// (get) Token: 0x060083F4 RID: 33780 RVA: 0x002B3B40 File Offset: 0x002B1D40
+		// (set) Token: 0x060083F5 RID: 33781 RVA: 0x002B3B48 File Offset: 0x002B1D48
+		public \uE529 ClientBroadcastSyncController { get; set; }
+
+		// Token: 0x17001252 RID: 4690
+		// (get) Token: 0x060083F6 RID: 33782 RVA: 0x002B3B54 File Offset: 0x002B1D54
+		// (set) Token: 0x060083F7 RID: 33783 RVA: 0x002B3B5C File Offset: 0x002B1D5C
+		public string LocationId { get; set; }
+
+		// Token: 0x14000161 RID: 353
+		// (add) Token: 0x060083F8 RID: 33784 RVA: 0x002B3B68 File Offset: 0x002B1D68
+		// (remove) Token: 0x060083F9 RID: 33785 RVA: 0x002B3BAC File Offset: 0x002B1DAC
+		public event Action AfterGameStarted
+		{
+			[CompilerGenerated]
+			add
+			{
+				Action action = this.\uE00F;
+				Action action2;
+				do
+				{
+					action2 = action;
+					Action value2 = (Action)Delegate.Combine(action2, value);
+					action = Interlocked.CompareExchange<Action>(ref this.\uE00F, value2, action2);
+				}
+				while (action != action2);
+			}
+			[CompilerGenerated]
+			remove
+			{
+				Action action = this.\uE00F;
+				Action action2;
+				do
+				{
+					action2 = action;
+					Action value2 = (Action)Delegate.Remove(action2, value);
+					action = Interlocked.CompareExchange<Action>(ref this.\uE00F, value2, action2);
+				}
+				while (action != action2);
+			}
+		}
+
+		// Token: 0x14000162 RID: 354
+		// (add) Token: 0x060083FA RID: 33786 RVA: 0x002B3BF0 File Offset: 0x002B1DF0
+		// (remove) Token: 0x060083FB RID: 33787 RVA: 0x002B3C34 File Offset: 0x002B1E34
+		public event Action<IPlayer> OnPersonAdd
+		{
+			[CompilerGenerated]
+			add
+			{
+				Action<IPlayer> action = this.\uE010;
+				Action<IPlayer> action2;
+				do
+				{
+					action2 = action;
+					Action<IPlayer> value2 = (Action<IPlayer>)Delegate.Combine(action2, value);
+					action = Interlocked.CompareExchange<Action<IPlayer>>(ref this.\uE010, value2, action2);
+				}
+				while (action != action2);
+			}
+			[CompilerGenerated]
+			remove
+			{
+				Action<IPlayer> action = this.\uE010;
+				Action<IPlayer> action2;
+				do
+				{
+					action2 = action;
+					Action<IPlayer> value2 = (Action<IPlayer>)Delegate.Remove(action2, value);
+					action = Interlocked.CompareExchange<Action<IPlayer>>(ref this.\uE010, value2, action2);
+				}
+				while (action != action2);
+			}
+		}
+
+		// Token: 0x14000163 RID: 355
+		// (add) Token: 0x060083FC RID: 33788 RVA: 0x002B3C78 File Offset: 0x002B1E78
+		// (remove) Token: 0x060083FD RID: 33789 RVA: 0x002B3CBC File Offset: 0x002B1EBC
+		public event Action<float> OnBeforeWorldTick
+		{
+			[CompilerGenerated]
+			add
+			{
+				Action<float> action = this.\uE011;
+				Action<float> action2;
+				do
+				{
+					action2 = action;
+					Action<float> value2 = (Action<float>)Delegate.Combine(action2, value);
+					action = Interlocked.CompareExchange<Action<float>>(ref this.\uE011, value2, action2);
+				}
+				while (action != action2);
+			}
+			[CompilerGenerated]
+			remove
+			{
+				Action<float> action = this.\uE011;
+				Action<float> action2;
+				do
+				{
+					action2 = action;
+					Action<float> value2 = (Action<float>)Delegate.Remove(action2, value);
+					action = Interlocked.CompareExchange<Action<float>>(ref this.\uE011, value2, action2);
+				}
+				while (action != action2);
+			}
+		}
+
+		// Token: 0x14000164 RID: 356
+		// (add) Token: 0x060083FE RID: 33790 RVA: 0x002B3D00 File Offset: 0x002B1F00
+		// (remove) Token: 0x060083FF RID: 33791 RVA: 0x002B3D44 File Offset: 0x002B1F44
+		public event Action<float> OnLateUpdate
+		{
+			[CompilerGenerated]
+			add
+			{
+				Action<float> action = this.\uE012;
+				Action<float> action2;
+				do
+				{
+					action2 = action;
+					Action<float> value2 = (Action<float>)Delegate.Combine(action2, value);
+					action = Interlocked.CompareExchange<Action<float>>(ref this.\uE012, value2, action2);
+				}
+				while (action != action2);
+			}
+			[CompilerGenerated]
+			remove
+			{
+				Action<float> action = this.\uE012;
+				Action<float> action2;
+				do
+				{
+					action2 = action;
+					Action<float> value2 = (Action<float>)Delegate.Remove(action2, value);
+					action = Interlocked.CompareExchange<Action<float>>(ref this.\uE012, value2, action2);
+				}
+				while (action != action2);
+			}
+		}
+
+		// Token: 0x17001253 RID: 4691
+		// (get) Token: 0x06008400 RID: 33792 RVA: 0x002B3D88 File Offset: 0x002B1F88
+		public float DeltaTime
+		{
+			get
+			{
+				float num = this.\uE013.DeltaTime;
+				if (num > 1f)
+				{
+					num = 1f;
+				}
+				return num;
+			}
+		}
+
+		// Token: 0x17001254 RID: 4692
+		// (get) Token: 0x06008401 RID: 33793 RVA: 0x002B3DB8 File Offset: 0x002B1FB8
+		// (set) Token: 0x06008402 RID: 33794 RVA: 0x002B3DC0 File Offset: 0x002B1FC0
+		public \uF05D ClientBallisticCalculator { get; private set; }
+
+		// Token: 0x17001255 RID: 4693
+		// (get) Token: 0x06008403 RID: 33795 RVA: 0x002B3DCC File Offset: 0x002B1FCC
+		// (set) Token: 0x06008404 RID: 33796 RVA: 0x002B3DD4 File Offset: 0x002B1FD4
+		public \uF05D SharedBallisticsCalculator
+		{
+			get
+			{
+				return this.\uE015;
+			}
+			private set
+			{
+				this.\uE015 = (value as BallisticsCalculator);
+			}
+		}
+
+		// Token: 0x17001256 RID: 4694
+		// (get) Token: 0x06008405 RID: 33797 RVA: 0x002B3DE4 File Offset: 0x002B1FE4
+		public IEnumerable<Player> AllPlayersEverExisted
+		{
+			get
+			{
+				return this.\uE016.Values;
+			}
+		}
+
+		// Token: 0x06008406 RID: 33798 RVA: 0x002B3DF4 File Offset: 0x002B1FF4
+		public Player GetEverExistedPlayerByID(string profileID)
+		{
+			Player result;
+			if (this.\uE016.TryGetValue(profileID, out result))
+			{
+				return result;
+			}
+			return null;
+		}
+
+		// Token: 0x06008407 RID: 33799 RVA: 0x002B3E14 File Offset: 0x002B2014
+		public ObservedPlayerView GetObservedPlayerByProfileID(string profileID)
+		{
+			ObservedPlayerView result;
+			if (this.allObservedPlayersByID.TryGetValue(profileID, out result))
+			{
+				return result;
+			}
+			return null;
+		}
+
+		// Token: 0x06008408 RID: 33800 RVA: 0x002B3E34 File Offset: 0x002B2034
+		public bool TryGetObservedPlayer(int id, out ObservedPlayerView observedPlayer)
+		{
+			foreach (KeyValuePair<string, ObservedPlayerView> keyValuePair in this.allObservedPlayersByID)
+			{
+				string text;
+				ObservedPlayerView observedPlayerView;
+				keyValuePair.Deconstruct(out text, out observedPlayerView);
+				ObservedPlayerView observedPlayerView2 = observedPlayerView;
+				if (observedPlayerView2.Id == id)
+				{
+					observedPlayer = observedPlayerView2;
+					return true;
+				}
+			}
+			observedPlayer = null;
+			return false;
+		}
+
+		// Token: 0x06008409 RID: 33801 RVA: 0x002B3EB4 File Offset: 0x002B20B4
+		public bool TryGetAlivePlayer(int id, out Player alivePlayer)
+		{
+			foreach (KeyValuePair<string, Player> keyValuePair in this.allAlivePlayersByID)
+			{
+				string text;
+				Player player;
+				keyValuePair.Deconstruct(out text, out player);
+				Player player2 = player;
+				if (player2.Id == id)
+				{
+					alivePlayer = player2;
+					return true;
+				}
+			}
+			alivePlayer = null;
+			return false;
+		}
+
+		// Token: 0x0600840A RID: 33802 RVA: 0x002B3F34 File Offset: 0x002B2134
+		public void FillLampControllers()
+		{
+			this.\uE017.Clear();
+			foreach (LampController lampController in LocationScene.GetAllObjects<LampController>(false))
+			{
+				this.\uE017.Add(lampController.Id, lampController);
+			}
+			foreach (ControlledLampGroup controlledLampGroup in LocationScene.GetAllObjects<ControlledLampGroup>(false))
+			{
+				this.\uE018.Add(controlledLampGroup.ID, controlledLampGroup);
+			}
+		}
+
+		// Token: 0x0600840B RID: 33803 RVA: 0x002B3FE0 File Offset: 0x002B21E0
+		public bool TryGetAlivePlayerByID(int id, out IPlayer player)
+		{
+			foreach (KeyValuePair<string, \uE703> keyValuePair in this.AllAlivePlayerBridges)
+			{
+				string text;
+				\uE703 uE;
+				keyValuePair.Deconstruct(out text, out uE);
+				\uE703 uE2 = uE;
+				if (uE2.iPlayer.Id == id)
+				{
+					player = uE2.iPlayer;
+					return true;
+				}
+			}
+			player = null;
+			return false;
+		}
+
+		// Token: 0x0600840C RID: 33804 RVA: 0x002B406C File Offset: 0x002B226C
+		protected virtual \uEB2B SyncObjectProcessorFactory()
+		{
+			return new \uEB2B();
+		}
+
+		// Token: 0x0600840D RID: 33805 RVA: 0x002B4074 File Offset: 0x002B2274
+		public \uE703 GetEverExistedBridgeByProfileID(string profileID)
+		{
+			if (profileID == null)
+			{
+				return null;
+			}
+			\uE703 result;
+			if (this.AllPlayerBridgesEverExisted.TryGetValue(profileID, out result))
+			{
+				return result;
+			}
+			return null;
+		}
+
+		// Token: 0x0600840E RID: 33806 RVA: 0x002B40A4 File Offset: 0x002B22A4
+		public \uE703 GetAlivePlayerBridgeByProfileID(string profileID)
+		{
+			if (profileID == null)
+			{
+				return null;
+			}
+			\uE703 result;
+			if (this.AllAlivePlayerBridges.TryGetValue(profileID, out result))
+			{
+				return result;
+			}
+			return null;
+		}
+
+		// Token: 0x0600840F RID: 33807 RVA: 0x002B40D4 File Offset: 0x002B22D4
+		public \uE703 GetAlivePlayerBridgeByCollider(Collider col)
+		{
+			\uE703 result;
+			if (this.AllAlivePlayerBridgesByCollider.TryGetValue(col, out result))
+			{
+				return result;
+			}
+			return null;
+		}
+
+		// Token: 0x06008410 RID: 33808 RVA: 0x002B40F4 File Offset: 0x002B22F4
+		public Player GetAlivePlayerByProfileID(string profileID)
+		{
+			Player result;
+			if (this.allAlivePlayersByID.TryGetValue(profileID, out result))
+			{
+				return result;
+			}
+			return null;
+		}
+
+		// Token: 0x17001257 RID: 4695
+		// (get) Token: 0x06008411 RID: 33809 RVA: 0x002B4114 File Offset: 0x002B2314
+		// (set) Token: 0x06008412 RID: 33810 RVA: 0x002B4144 File Offset: 0x002B2344
+		public MovingPlatform[] Platforms
+		{
+			get
+			{
+				MovingPlatform[] result;
+				if ((result = this.\uE019) == null)
+				{
+					result = (this.\uE019 = Enumerable.ToArray<MovingPlatform>(LocationScene.GetAllObjectsAndWhenISayAllIActuallyMeanIt<MovingPlatform>()));
+				}
+				return result;
+			}
+			set
+			{
+				this.\uE019 = value;
+			}
+		}
+
+		// Token: 0x06008413 RID: 33811 RVA: 0x002B4150 File Offset: 0x002B2350
+		public IEnumerator<IPlayer> GetEnumerator()
+		{
+			return Enumerable.Where<IPlayer>(this.RegisteredPlayers, new Func<IPlayer, bool>(GameWorld.<>c.<>9.\uE000)).GetEnumerator();
+		}
+
+		// Token: 0x06008414 RID: 33812 RVA: 0x002B4184 File Offset: 0x002B2384
+		IEnumerator IEnumerable.GetEnumerator()
+		{
+			return this.GetEnumerator();
+		}
+
+		// Token: 0x17001258 RID: 4696
+		// (get) Token: 0x06008415 RID: 33813 RVA: 0x002B418C File Offset: 0x002B238C
+		protected Dictionary<Collider, IPlayer> PlayersColliders { get; } = new Dictionary<Collider, IPlayer>(40);
+
+		// Token: 0x17001259 RID: 4697
+		// (get) Token: 0x06008416 RID: 33814 RVA: 0x002B4194 File Offset: 0x002B2394
+		public static int InteractiveLootMaskWPlayer
+		{
+			get
+			{
+				return GameWorld.\uE01D;
+			}
+		}
+
+		// Token: 0x1700125A RID: 4698
+		// (get) Token: 0x06008417 RID: 33815 RVA: 0x002B419C File Offset: 0x002B239C
+		public static int LootMaskObstruction
+		{
+			get
+			{
+				return GameWorld.\uE01F;
+			}
+		}
+
+		// Token: 0x1700125B RID: 4699
+		// (get) Token: 0x06008418 RID: 33816 RVA: 0x002B41A4 File Offset: 0x002B23A4
+		// (set) Token: 0x06008419 RID: 33817 RVA: 0x002B41AC File Offset: 0x002B23AC
+		public \uEB2B SynchronizableObjectLogicProcessor { get; protected set; }
+
+		// Token: 0x1700125C RID: 4700
+		// (get) Token: 0x0600841A RID: 33818 RVA: 0x002B41B8 File Offset: 0x002B23B8
+		public EUpdateQueue UpdateQueue
+		{
+			get
+			{
+				return this.\uE021;
+			}
+		}
+
+		// Token: 0x14000165 RID: 357
+		// (add) Token: 0x0600841B RID: 33819 RVA: 0x002B41C0 File Offset: 0x002B23C0
+		// (remove) Token: 0x0600841C RID: 33820 RVA: 0x002B4204 File Offset: 0x002B2404
+		public event Action<\uE2FB> OnLootItemDestroyed
+		{
+			[CompilerGenerated]
+			add
+			{
+				Action<\uE2FB> action = this.\uE023;
+				Action<\uE2FB> action2;
+				do
+				{
+					action2 = action;
+					Action<\uE2FB> value2 = (Action<\uE2FB>)Delegate.Combine(action2, value);
+					action = Interlocked.CompareExchange<Action<\uE2FB>>(ref this.\uE023, value2, action2);
+				}
+				while (action != action2);
+			}
+			[CompilerGenerated]
+			remove
+			{
+				Action<\uE2FB> action = this.\uE023;
+				Action<\uE2FB> action2;
+				do
+				{
+					action2 = action;
+					Action<\uE2FB> value2 = (Action<\uE2FB>)Delegate.Remove(action2, value);
+					action = Interlocked.CompareExchange<Action<\uE2FB>>(ref this.\uE023, value2, action2);
+				}
+				while (action != action2);
+			}
+		}
+
+		// Token: 0x1700125D RID: 4701
+		// (get) Token: 0x0600841D RID: 33821 RVA: 0x002B4248 File Offset: 0x002B2448
+		public \uE37E GrenadeFactory
+		{
+			get
+			{
+				return this.\uE024;
+			}
+		}
+
+		// Token: 0x1700125E RID: 4702
+		// (get) Token: 0x0600841E RID: 33822 RVA: 0x002B4250 File Offset: 0x002B2450
+		public BaseRestrictableZone[] RestrictableZones
+		{
+			get
+			{
+				return this.\uE028;
+			}
+		}
+
+		// Token: 0x0600841F RID: 33823 RVA: 0x002B4258 File Offset: 0x002B2458
+		[CanBeNull]
+		public MovingPlatform GetPlatformAtPosition(Vector3 position)
+		{
+			foreach (MovingPlatform movingPlatform in this.Platforms)
+			{
+				if (movingPlatform.Area != null)
+				{
+					if (movingPlatform.Area.ContainsPointConsiderCenter(position))
+					{
+						return movingPlatform;
+					}
+				}
+			}
+			return null;
+		}
+
+		// Token: 0x06008420 RID: 33824 RVA: 0x002B42B4 File Offset: 0x002B24B4
+		public void BoardIfOnPlatform(MovingPlatform.\uE000 transportee, Vector3 position)
+		{
+			MovingPlatform platformAtPosition = this.GetPlatformAtPosition(position);
+			if (platformAtPosition)
+			{
+				transportee.Board(platformAtPosition);
+			}
+		}
+
+		// Token: 0x06008421 RID: 33825 RVA: 0x002B42E0 File Offset: 0x002B24E0
+		public AmmoPoolObject SpawnShellInTheWorld(ref AmmoPoolObject shell)
+		{
+			AmmoPoolObject ammoPoolObject = shell;
+			shell = null;
+			this.\uE01B.Add(ammoPoolObject);
+			return ammoPoolObject;
+		}
+
+		// Token: 0x1700125F RID: 4703
+		// (get) Token: 0x06008422 RID: 33826 RVA: 0x002B4308 File Offset: 0x002B2508
+		private World \uE02E
+		{
+			get
+			{
+				World result;
+				if ((result = this.\uE02B) == null)
+				{
+					result = (this.\uE02B = base.GetComponent<World>());
+				}
+				return result;
+			}
+		}
+
+		// Token: 0x06008423 RID: 33827 RVA: 0x002B4334 File Offset: 0x002B2534
+		\uF05D \uE71B.CreateBallisticCalculator(int seed)
+		{
+			return this.SharedBallisticsCalculator;
+		}
+
+		// Token: 0x06008424 RID: 33828 RVA: 0x002B433C File Offset: 0x002B253C
+		public void RemoveBallisticCalculator(Item weapon)
+		{
+		}
+
+		// Token: 0x06008425 RID: 33829 RVA: 0x002B4340 File Offset: 0x002B2540
+		public \uF05D CreateClientBallisticsCalculator()
+		{
+			if (this.ClientBallisticCalculator == null)
+			{
+				this.ClientBallisticCalculator = BallisticsCalculator.Create(base.gameObject, 0, new \uE71A(this.ShotDelegate), true);
+			}
+			return this.ClientBallisticCalculator;
+		}
+
+		// Token: 0x06008426 RID: 33830 RVA: 0x002B4378 File Offset: 0x002B2578
+		public void RemoveClientBallisticsCalculator()
+		{
+		}
+
+		// Token: 0x06008427 RID: 33831 RVA: 0x002B437C File Offset: 0x002B257C
+		public void RegisterGrenade(Throwable grenade)
+		{
+			this.\uE000(grenade);
+			try
+			{
+				this.Grenades.Add(grenade.Id, grenade);
+				grenade.DestroyEvent += this.\uE001;
+			}
+			catch (Exception)
+			{
+				Debug.LogError(string.Format(\uF1F8.\uE000(192203), grenade.Id));
+				Throwable throwable;
+				if (this.Grenades.TryGetByKey(grenade.Id, out throwable))
+				{
+					Debug.LogError(string.Format(\uF1F8.\uE000(192157), throwable.Id));
+				}
+			}
+		}
+
+		// Token: 0x06008428 RID: 33832 RVA: 0x002B441C File Offset: 0x002B261C
+		private void \uE000(Throwable grenade)
+		{
+			grenade.DestroyEvent -= this.\uE001;
+			this.\uE002(grenade);
+			this.Grenades.Remove(grenade.Id);
+		}
+
+		// Token: 0x06008429 RID: 33833 RVA: 0x002B444C File Offset: 0x002B264C
+		public void UnregisterGrenade(string id)
+		{
+			int stableHashCode = id.GetStableHashCode();
+			if (!this.Grenades.ContainsKey(stableHashCode))
+			{
+				return;
+			}
+			this.Grenades.Remove(stableHashCode);
+		}
+
+		// Token: 0x0600842A RID: 33834 RVA: 0x002B447C File Offset: 0x002B267C
+		private void \uE001(Throwable grenade)
+		{
+			this.\uE000(grenade);
+		}
+
+		// Token: 0x0600842B RID: 33835 RVA: 0x002B4488 File Offset: 0x002B2688
+		private void \uE002(Throwable grenade)
+		{
+			if (grenade.HasNetData)
+			{
+				\uE70E netPacket = grenade.GetNetPacket();
+				this.GrenadesCriticalStates.Add(netPacket);
+			}
+		}
+
+		// Token: 0x0600842C RID: 33836 RVA: 0x002B44B8 File Offset: 0x002B26B8
+		protected virtual void Awake()
+		{
+			Grenade.GrenadeRandoms = new \uF055(128, 1337);
+			this.\uE024 = this.CreateGrenadeFactory();
+			foreach (WorldInteractiveObject worldInteractiveObject in LocationScene.GetAllObjects<WorldInteractiveObject>(false))
+			{
+				worldInteractiveObject.OnDoorStateChanged += this.\uE00E;
+			}
+		}
+
+		// Token: 0x0600842D RID: 33837 RVA: 0x002B4530 File Offset: 0x002B2730
+		protected virtual \uE37E CreateGrenadeFactory()
+		{
+			return new \uE37E();
+		}
+
+		// Token: 0x0600842E RID: 33838 RVA: 0x002B4538 File Offset: 0x002B2738
+		internal virtual void \uE017(World world)
+		{
+			this.\uE02A = world;
+			this.ExfiltrationController.StatusChanged += this.\uE02A.OnExfiltrationPointUpdate;
+		}
+
+		// Token: 0x0600842F RID: 33839 RVA: 0x002B4560 File Offset: 0x002B2760
+		public void RegisterInteractiveObject(Turnable t)
+		{
+			if (!this.Turnables.ContainsKey(t.NetId))
+			{
+				this.Turnables.Add(t.NetId, t);
+				return;
+			}
+			Debug.LogError(string.Format(\uF1F8.\uE000(191871), t.NetId, t.gameObject.name));
+		}
+
+		// Token: 0x06008430 RID: 33840 RVA: 0x002B45C0 File Offset: 0x002B27C0
+		public virtual void ChangeLampState(Turnable turnable, Turnable.EState state)
+		{
+			turnable.Switch(state);
+		}
+
+		// Token: 0x06008431 RID: 33841 RVA: 0x002B45CC File Offset: 0x002B27CC
+		public void RegisterWindow(WindowBreaker window)
+		{
+			WindowBreaker windowBreaker;
+			if (!this.Windows.TryGetByKey(window.NetId, out windowBreaker))
+			{
+				this.Windows.Add(window.NetId, window);
+				return;
+			}
+			Debug.LogError(string.Concat(new string[]
+			{
+				\uF1F8.\uE000(191794),
+				window.Id,
+				\uF1F8.\uE000(191765),
+				windowBreaker.gameObject.scene.name,
+				\uF1F8.\uE000(191773),
+				windowBreaker.transform.GetFullPath(false)
+			}), window);
+		}
+
+		// Token: 0x06008432 RID: 33842 RVA: 0x002B4668 File Offset: 0x002B2868
+		public virtual bool IsLocalGame()
+		{
+			return false;
+		}
+
+		// Token: 0x06008433 RID: 33843 RVA: 0x002B466C File Offset: 0x002B286C
+		public virtual void InitAirdrop(string lootTemplateId = null, bool takeNearbyPoint = false, Vector3 position = default(Vector3))
+		{
+		}
+
+		// Token: 0x06008434 RID: 33844 RVA: 0x002B4670 File Offset: 0x002B2870
+		public void RegisterWorldInteractionObject(WorldInteractiveObject worldInteractiveObject)
+		{
+			this.\uE02E.RegisterWorldInteractionObject(worldInteractiveObject);
+		}
+
+		// Token: 0x06008435 RID: 33845 RVA: 0x002B4680 File Offset: 0x002B2880
+		public virtual Task InitLevel(\uE79C itemFactory, \uE90B config, bool loadBundlesAndCreatePools = true, List<ResourceKey> resources = null, IProgress<\uE702> progress = null, CancellationToken ct = default(CancellationToken))
+		{
+			GameWorld.\uE014 uE;
+			uE.<>t__builder = AsyncTaskMethodBuilder.Create();
+			uE.<>4__this = this;
+			uE.config = config;
+			uE.loadBundlesAndCreatePools = loadBundlesAndCreatePools;
+			uE.resources = resources;
+			uE.progress = progress;
+			uE.ct = ct;
+			uE.<>1__state = -1;
+			uE.<>t__builder.Start<GameWorld.\uE014>(ref uE);
+			return uE.<>t__builder.Task;
+		}
+
+		// Token: 0x06008436 RID: 33846 RVA: 0x002B4700 File Offset: 0x002B2900
+		private Task \uE003()
+		{
+			GameWorld.\uE015 uE;
+			uE.<>t__builder = AsyncTaskMethodBuilder.Create();
+			uE.<>4__this = this;
+			uE.<>1__state = -1;
+			uE.<>t__builder.Start<GameWorld.\uE015>(ref uE);
+			return uE.<>t__builder.Task;
+		}
+
+		// Token: 0x06008437 RID: 33847 RVA: 0x002B4750 File Offset: 0x002B2950
+		public void RegisterLoot<T>(T loot) where T : InteractableObject
+		{
+			this.LootList.Add(loot);
+			LootItem lootItem = loot as LootItem;
+			if (lootItem != null)
+			{
+				this.ItemOwners.Add(lootItem.ItemOwner, new GameWorld.\uE000
+				{
+					Transform = loot.TrackableTransform,
+					DoNotPerformPickUpValidation = !lootItem.PerformPickUpValidation,
+					ItemOwner = lootItem.ItemOwner
+				});
+				int netId = lootItem.GetNetId();
+				try
+				{
+					this.LootItems.Add(netId, lootItem);
+				}
+				catch (Exception)
+				{
+					Debug.LogError(string.Format(\uF1F8.\uE000(191748), new object[]
+					{
+						lootItem.ItemId,
+						lootItem.Item.Id,
+						netId,
+						lootItem.ItemOwner,
+						lootItem
+					}));
+					LootItem lootItem2;
+					if (this.LootItems.TryGetByKey(netId, out lootItem2))
+					{
+						Debug.LogError(string.Format(\uF1F8.\uE000(191899), new object[]
+						{
+							lootItem2.ItemId,
+							lootItem2.Item.Id,
+							lootItem2.GetNetId(),
+							lootItem2.ItemOwner,
+							lootItem2
+						}));
+					}
+				}
+			}
+			LootableContainer lootableContainer = loot as LootableContainer;
+			if (lootableContainer != null)
+			{
+				this.ItemOwners.Add(lootableContainer.ItemOwner, new GameWorld.\uE000
+				{
+					Transform = lootableContainer.TrackableTransform
+				});
+			}
+		}
+
+		// Token: 0x06008438 RID: 33848 RVA: 0x002B48F4 File Offset: 0x002B2AF4
+		public void DestroyAllLoot()
+		{
+			foreach (LootItem loot in Enumerable.ToArray<LootItem>(Enumerable.OfType<LootItem>(this.LootList)))
+			{
+				this.DestroyLoot(loot);
+			}
+		}
+
+		// Token: 0x06008439 RID: 33849 RVA: 0x002B4938 File Offset: 0x002B2B38
+		public void DestroyLoot(string id)
+		{
+			GameWorld.\uE00C uE00C = new GameWorld.\uE00C();
+			uE00C.id = id;
+			LootItem lootItem = Enumerable.FirstOrDefault<LootItem>(Enumerable.OfType<LootItem>(this.LootList), new Func<LootItem, bool>(uE00C.\uE000));
+			if (lootItem != null)
+			{
+				this.DestroyLoot(lootItem);
+				return;
+			}
+			Debug.LogError(\uF1F8.\uE000(191562) + uE00C.id + \uF1F8.\uE000(191550));
+		}
+
+		// Token: 0x0600843A RID: 33850 RVA: 0x002B49AC File Offset: 0x002B2BAC
+		public void DestroyLoot(\uE2FB loot)
+		{
+			if (this.\uE023 != null)
+			{
+				this.\uE023(loot);
+			}
+			this.LootList.Remove(loot);
+			LootItem lootItem = loot as LootItem;
+			if (lootItem != null)
+			{
+				this.ItemOwners.Remove(lootItem.ItemOwner);
+				this.LootItems.Remove(lootItem.GetNetId());
+				\uE34D.\uE006 onTakeItem = this.OnTakeItem;
+				if (onTakeItem != null)
+				{
+					onTakeItem(lootItem);
+				}
+			}
+			if (loot is LootableContainer)
+			{
+				if (((LootableContainer)loot).ItemOwner != null)
+				{
+					this.ItemOwners.Remove(((LootableContainer)loot).ItemOwner);
+				}
+			}
+			foreach (IPlayer player in this.RegisteredPlayers)
+			{
+				Player alivePlayerByProfileID = this.GetAlivePlayerByProfileID(player.ProfileId);
+				if (!(alivePlayerByProfileID == null))
+				{
+					alivePlayerByProfileID.ResetInteractionRaycast(loot);
+				}
+			}
+			loot.Kill();
+		}
+
+		// Token: 0x0600843B RID: 33851 RVA: 0x002B4AD0 File Offset: 0x002B2CD0
+		internal \uE657 \uE004(\uE657 lootItems)
+		{
+			\uE657 uE = new \uE657();
+			foreach (\uE654 uE2 in lootItems)
+			{
+				if (uE2.Item.QuestItem)
+				{
+					this.\uE01C.Add(uE2);
+				}
+				else
+				{
+					uE.Add(uE2);
+				}
+			}
+			return uE;
+		}
+
+		// Token: 0x0600843C RID: 33852 RVA: 0x002B4B48 File Offset: 0x002B2D48
+		protected virtual LootItem CreateStaticLoot(GameObject lootObject, Item item, string lootName, bool randomRotation, [CanBeNull] MongoID[] validProfiles, string staticId = null, Vector3 shift = default(Vector3))
+		{
+			return LootItem.CreateStaticLoot<LootItem>(lootObject, item, lootName, this, randomRotation, validProfiles, staticId, true, shift);
+		}
+
+		// Token: 0x0600843D RID: 33853 RVA: 0x002B4B68 File Offset: 0x002B2D68
+		internal void \uE005(\uE657 lootItems, bool initial)
+		{
+			this.Platforms = Enumerable.ToArray<MovingPlatform>(LocationScene.GetAllObjectsAndWhenISayAllIActuallyMeanIt<MovingPlatform>());
+			Locomotive[] array = Enumerable.ToArray<Locomotive>(Enumerable.OfType<Locomotive>(this.Platforms));
+			this.PlatformAdapters = new MovingPlatform.\uE001[array.Length];
+			for (int i = 0; i < array.Length; i++)
+			{
+				this.PlatformAdapters[i] = new MovingPlatform.\uE001
+				{
+					Platform = array[i],
+					Id = (byte)i
+				};
+			}
+			\uE3A2[] array2 = Enumerable.ToArray<\uE3A2>(Enumerable.Concat<\uE3A2>(Enumerable.Concat<\uE3A2>(Enumerable.Cast<\uE3A2>(LocationScene.GetAllObjects<StaticLoot>(false)), LocationScene.GetAllObjects<LootableContainer>(false)), LocationScene.GetAllObjects<StationaryWeapon>(false)));
+			if (initial)
+			{
+				array2 = this.\uE006(lootItems, array2);
+			}
+			List<Vector3> list = new List<Vector3>();
+			foreach (\uE654 uE in lootItems)
+			{
+				GameWorld.\uE00D uE00D = new GameWorld.\uE00D();
+				uE00D.lootId = uE.Id;
+				Item item = uE.Item;
+				string shortName = item.ShortName;
+				this.AllLoot.Add(uE);
+				if (initial)
+				{
+					item.SpawnedInSession = true;
+					\uEDBE uEDBE = item as \uEDBE;
+					if (uEDBE != null)
+					{
+						foreach (Item item2 in uEDBE.GetAllItemsFromCollection())
+						{
+							item2.SpawnedInSession = true;
+						}
+					}
+				}
+				if (uE.IsContainer)
+				{
+					\uE3A2 uE3A = Enumerable.FirstOrDefault<\uE3A2>(array2, new Func<\uE3A2, bool>(uE00D.\uE000));
+					if (uE3A != null)
+					{
+						StaticLoot staticLoot = uE3A as StaticLoot;
+						if (staticLoot == null)
+						{
+							LootableContainer lootableContainer = uE3A as LootableContainer;
+							if (lootableContainer == null)
+							{
+								StationaryWeapon stationaryWeapon = uE3A as StationaryWeapon;
+								if (stationaryWeapon != null)
+								{
+									LootItem.CreateStationaryWeapon(stationaryWeapon, item, shortName, this, uE00D.lootId);
+									list.Add(stationaryWeapon.transform.position);
+								}
+							}
+							else
+							{
+								LootItem.CreateLootContainer(lootableContainer, item, shortName, this, uE00D.lootId);
+								list.Add(lootableContainer.transform.position);
+							}
+						}
+						else
+						{
+							new \uEEFC(item, item.Id, shortName, true, EOwnerType.Profile);
+							this.CreateStaticLoot(staticLoot.gameObject, item, shortName, uE.randomRotation, uE.ValidProfiles, uE00D.lootId, uE.Shift);
+							list.Add(staticLoot.gameObject.transform.position);
+						}
+					}
+					else
+					{
+						Debug.LogError(uE00D.lootId + \uF1F8.\uE000(191491));
+					}
+				}
+				else
+				{
+					\uE655 uE2 = uE as \uE655;
+					if (uE2 != null)
+					{
+						this.SpawnLootCorpse(uE2);
+					}
+					else
+					{
+						if (uE.PlatformId > -1)
+						{
+							Debug.Log(\uF1F8.\uE000(191503).Yellow());
+						}
+						this.\uE00A(uE, initial, null, (uE.PlatformId > -1) ? this.Platforms[(int)uE.PlatformId] : null);
+					}
+					list.Add(uE.Position);
+				}
+			}
+			if (Singleton<\uE34D>.Instantiated)
+			{
+				Singleton<\uE34D>.Instance.SpawnLoot(list);
+			}
+		}
+
+		// Token: 0x0600843E RID: 33854 RVA: 0x002B4EAC File Offset: 0x002B30AC
+		protected virtual void SpawnLootCorpse(\uE655 lootItem)
+		{
+			this.SpawnLootCorpse<Corpse>(lootItem);
+		}
+
+		// Token: 0x0600843F RID: 33855 RVA: 0x002B4EB8 File Offset: 0x002B30B8
+		protected void SpawnLootCorpse<T>(\uE655 corpseJson) where T : Corpse
+		{
+			Corpse.CreateStillCorpse<T>(this, corpseJson, (corpseJson.PlatformId > -1) ? this.Platforms[(int)corpseJson.PlatformId] : null);
+		}
+
+		// Token: 0x06008440 RID: 33856 RVA: 0x002B4EDC File Offset: 0x002B30DC
+		private \uE3A2[] \uE006(\uE657 lootItems, \uE3A2[] staticLootSpawns)
+		{
+			this.\uE007(lootItems, ref staticLootSpawns);
+			return Enumerable.ToArray<\uE3A2>(Enumerable.Where<\uE3A2>(staticLootSpawns, new Func<\uE3A2, bool>(GameWorld.<>c.<>9.\uE002)));
+		}
+
+		// Token: 0x06008441 RID: 33857 RVA: 0x002B4F14 File Offset: 0x002B3114
+		public void DevelopSetContainerVisibility(int command, string id)
+		{
+			GameWorld.\uE00E uE00E = new GameWorld.\uE00E();
+			uE00E.<>4__this = this;
+			uE00E.id = id;
+			switch (command)
+			{
+			case 0:
+				foreach (GameObject gameObject in this.\uE027)
+				{
+					gameObject.SetActive(true);
+				}
+				this.\uE027.Clear();
+				return;
+			case 1:
+			{
+				if (uE00E.id.IsNullOrEmpty())
+				{
+					Debug.LogError(\uF1F8.\uE000(191721));
+					return;
+				}
+				LootableContainer lootableContainer = Enumerable.FirstOrDefault<LootableContainer>(Enumerable.OfType<LootableContainer>(this.LootList), new Func<LootableContainer, bool>(uE00E.\uE001));
+				if (lootableContainer == null)
+				{
+					Debug.LogError(\uF1F8.\uE000(191688) + uE00E.id + \uF1F8.\uE000(191635));
+					return;
+				}
+				uE00E.\uE000(lootableContainer);
+				return;
+			}
+			case 2:
+				foreach (LootableContainer container in Enumerable.OfType<LootableContainer>(this.LootList))
+				{
+					uE00E.\uE000(container);
+				}
+				return;
+			default:
+				return;
+			}
+		}
+
+		// Token: 0x06008442 RID: 33858 RVA: 0x002B5068 File Offset: 0x002B3268
+		private void \uE007(\uE657 lootItems, ref \uE3A2[] staticLootSpawns)
+		{
+			this.\uE027.Clear();
+			\uE3A2[] array = staticLootSpawns;
+			for (int i = 0; i < array.Length; i++)
+			{
+				GameWorld.\uE00F uE00F = new GameWorld.\uE00F();
+				uE00F.staticLootSpawn = array[i];
+				if (Enumerable.All<\uE654>(lootItems, new Func<\uE654, bool>(uE00F.\uE000)))
+				{
+					GameObject gameObject = ((MonoBehaviour)uE00F.staticLootSpawn).gameObject;
+					string text = string.Join(\uF1F8.\uE000(42442), Enumerable.ToArray<string>(Enumerable.Concat<string>(Enumerable.Repeat<string>(gameObject.scene.name, 1), Enumerable.Select<Transform, string>(Enumerable.Reverse<Transform>(GameWorld.\uE008(gameObject.transform)), new Func<Transform, string>(GameWorld.<>c.<>9.\uE003)))));
+					Debug.LogWarning(string.Concat(new string[]
+					{
+						\uF1F8.\uE000(191646),
+						uE00F.staticLootSpawn.Id,
+						\uF1F8.\uE000(191627),
+						text,
+						\uF1F8.\uE000(191357)
+					}), gameObject);
+					LootableContainer lootableContainer = uE00F.staticLootSpawn as LootableContainer;
+					if (lootableContainer != null && !lootableContainer.GameObjectsToDestroy.IsNullOrEmpty<GameObject>())
+					{
+						this.\uE027.AddRange(lootableContainer.GameObjectsToDestroy);
+					}
+				}
+			}
+			foreach (GameObject gameObject2 in this.\uE027)
+			{
+				gameObject2.SetActive(false);
+			}
+			this.\uE027.Clear();
+		}
+
+		// Token: 0x06008443 RID: 33859 RVA: 0x002B5224 File Offset: 0x002B3424
+		private static IEnumerable<Transform> \uE008(Transform transform)
+		{
+			for (;;)
+			{
+				int num2;
+				int num = num2;
+				if (num != 0)
+				{
+					if (num != 1)
+					{
+						break;
+					}
+					transform = transform.parent;
+				}
+				if (!(transform != null))
+				{
+					goto Block_3;
+				}
+				yield return transform;
+			}
+			yield break;
+			Block_3:
+			yield break;
+		}
+
+		// Token: 0x06008444 RID: 33860 RVA: 0x002B5234 File Offset: 0x002B3434
+		internal void \uE009(\uE657 lootItems)
+		{
+			\uE3A2[] array = Enumerable.ToArray<\uE3A2>(Enumerable.Concat<\uE3A2>(LocationScene.GetAllObjects<StaticLoot>(false), Enumerable.Cast<\uE3A2>(LocationScene.GetAllObjects<LootableContainer>(false))));
+			this.\uE007(lootItems, ref array);
+		}
+
+		// Token: 0x06008445 RID: 33861 RVA: 0x002B5268 File Offset: 0x002B3468
+		protected virtual LootItem CreateLootWithRigidbody(GameObject lootObject, Item item, string objectName, bool randomRotation, [CanBeNull] MongoID[] validProfiles, out BoxCollider objectCollider, bool syncable, bool performPickUpValidation = true, float makeVisibleAfterDelay = 0f)
+		{
+			return LootItem.CreateLootWithRigidbody<LootItem>(lootObject, item, objectName, this, randomRotation, validProfiles, out objectCollider, performPickUpValidation, makeVisibleAfterDelay);
+		}
+
+		// Token: 0x06008446 RID: 33862 RVA: 0x002B5288 File Offset: 0x002B3488
+		private void \uE00A(\uE654 lootItem, bool initial, Player questPlayer = null, MovingPlatform platform = null)
+		{
+			Item item = (questPlayer == null) ? lootItem.Item : lootItem.Item.CloneItem(null);
+			new \uEEFC(item, item.Id, item.ShortName, true, EOwnerType.Profile);
+			GameObject gameObject = Singleton<\uE90C>.Instance.CreateLootPrefab(item, ECameraType.Default, null);
+			gameObject.SetActive(true);
+			if (platform != null)
+			{
+				gameObject.transform.position = platform.transform.TransformPoint(lootItem.Position);
+			}
+			else
+			{
+				gameObject.transform.position = lootItem.Position;
+				gameObject.transform.rotation = Quaternion.Euler(lootItem.Rotation);
+			}
+			BoxCollider boxCollider;
+			LootItem lootItem2 = lootItem.useGravity ? this.CreateLootWithRigidbody(gameObject, item, item.ShortName, lootItem.randomRotation, lootItem.ValidProfiles, out boxCollider, false, true, 0f) : this.CreateStaticLoot(gameObject, item, item.ShortName, lootItem.randomRotation, lootItem.ValidProfiles, null, lootItem.Shift);
+			if (platform != null)
+			{
+				lootItem2.Board(platform);
+				gameObject.transform.localRotation = Quaternion.Euler(lootItem.Rotation);
+				return;
+			}
+			PreviewPivot component = gameObject.GetComponent<PreviewPivot>();
+			if (component == null || component.SpawnPosition == Vector3.zero)
+			{
+				return;
+			}
+			GameObject gameObject2 = new GameObject(\uF1F8.\uE000(191296));
+			gameObject2.transform.position = lootItem.Position;
+			gameObject2.transform.rotation = Quaternion.Euler(lootItem.Rotation);
+			Transform transform = lootItem2.transform;
+			transform.SetParent(gameObject2.transform);
+			transform.localPosition = (initial ? (-component.SpawnPosition) : Vector3.zero);
+			if (lootItem.randomRotation)
+			{
+				transform.rotation = Quaternion.Euler(new Vector3(0f, (float)UnityEngine.Random.Range(0, 360), 0f));
+			}
+			transform.localScale = Vector3.one;
+		}
+
+		// Token: 0x06008447 RID: 33863 RVA: 0x002B549C File Offset: 0x002B369C
+		protected virtual Task PreloadAdditionalData()
+		{
+			return Task.CompletedTask;
+		}
+
+		// Token: 0x06008448 RID: 33864 RVA: 0x002B54A4 File Offset: 0x002B36A4
+		public LootItem ThrowItem(Item item, IPlayer player, Vector3? direction)
+		{
+			Vector3 a = direction ?? (Quaternion.Euler(Mathf.Clamp(player.Rotation.y, -90f, 45f), player.Rotation.x, 0f) * new Vector3(0f, 1f, 1f));
+			a *= 2f;
+			Vector3 position = player.PlayerColliderPointOnCenterAxis(0.65f) + player.Velocity * Time.deltaTime;
+			Quaternion rotation = player.PlayerBones.WeaponRoot.rotation * Quaternion.Euler(90f, 0f, 0f);
+			Vector3 angularVelocity = new Vector3(UnityEngine.Random.Range(-3f, 3f), UnityEngine.Random.Range(-3f, 3f), 2f * Mathf.Sign((float)UnityEngine.Random.Range(-1, 2)));
+			return this.ThrowItem(item, player, position, rotation, a + player.Velocity / 2f, angularVelocity, true, true, EFTHardSettings.Instance.ThrowLootMakeVisibleDelay);
+		}
+
+		// Token: 0x06008449 RID: 33865 RVA: 0x002B55EC File Offset: 0x002B37EC
+		public LootItem ThrowItem(Item item, IPlayer player, Vector3 position, Quaternion rotation, Vector3 velocity, Vector3 angularVelocity, bool syncable, bool performPickUpValidation = true, float makeVisibleAfterDelay = 0f)
+		{
+			try
+			{
+				if (item == null)
+				{
+					Debug.LogError(\uF1F8.\uE000(191286));
+				}
+				new \uEEFC(item, (item != null) ? item.Id : null, (item != null) ? item.ShortName : null, true, EOwnerType.Profile);
+				if (Singleton<\uE90C>.Instance == null)
+				{
+					throw new Exception(\uF1F8.\uE000(191267));
+				}
+				GameObject gameObject = Singleton<\uE90C>.Instance.CreateLootPrefab(item, Player.GetVisibleToCamera(player), null);
+				if (gameObject == null)
+				{
+					throw new Exception(\uF1F8.\uE000(191246));
+				}
+				gameObject.SetActive(true);
+				BoxCollider boxCollider;
+				LootItem lootItem = this.CreateLootWithRigidbody(gameObject, item, (item != null) ? item.ShortName : null, false, null, out boxCollider, syncable, performPickUpValidation, makeVisibleAfterDelay);
+				try
+				{
+					lootItem.transform.SetPositionAndRotation(position, rotation);
+					lootItem.RigidBody.velocity = velocity;
+					lootItem.RigidBody.angularVelocity = angularVelocity;
+					lootItem.LastOwner = player;
+					lootItem.CacheParameters();
+					\uE34D.\uE005 onThrowItem = this.OnThrowItem;
+					if (onThrowItem != null)
+					{
+						onThrowItem(lootItem);
+					}
+				}
+				catch (Exception ex)
+				{
+					Debug.LogError(string.Format(\uF1F8.\uE000(191481), new object[]
+					{
+						(item != null) ? item.Name : null,
+						(item != null) ? item.Id : null,
+						lootItem,
+						ex.Message,
+						ex.StackTrace
+					}));
+				}
+				return lootItem;
+			}
+			catch (Exception ex2)
+			{
+				Debug.LogError(string.Concat(new string[]
+				{
+					(item != null) ? item.Name : null,
+					\uF1F8.\uE000(42825),
+					(item != null) ? item.Id : null,
+					\uF1F8.\uE000(41875),
+					ex2.Message,
+					\uF1F8.\uE000(191450),
+					ex2.StackTrace
+				}));
+			}
+			return null;
+		}
+
+		// Token: 0x0600844A RID: 33866 RVA: 0x002B57FC File Offset: 0x002B39FC
+		public LootItem SetupItem(Item item, IPlayer player, Vector3 position, Quaternion rotation)
+		{
+			new \uEEFC(item, item.Id, item.ShortName, true, EOwnerType.Profile);
+			GameObject gameObject = Singleton<\uE90C>.Instance.CreateLootPrefab(item, Player.GetVisibleToCamera(player), null);
+			gameObject.SetActive(true);
+			BoxCollider boxCollider;
+			LootItem lootItem = this.CreateLootWithRigidbody(gameObject, item, item.ShortName, false, null, out boxCollider, true, true, 0f);
+			lootItem.GetComponent<Rigidbody>().isKinematic = true;
+			lootItem.transform.SetPositionAndRotation(position + rotation * lootItem.Shift, rotation);
+			lootItem.LastOwner = player;
+			return lootItem;
+		}
+
+		// Token: 0x0600844B RID: 33867 RVA: 0x002B5898 File Offset: 0x002B3A98
+		public virtual void PlantTripwire(Item item, string profileId, Vector3 fromPosition, Vector3 toPosition)
+		{
+			\uEEC9 uEEC = item as \uEEC9;
+			if (uEEC == null)
+			{
+				return;
+			}
+			TripwireSynchronizableObject tripwireSynchronizableObject = (TripwireSynchronizableObject)this.SynchronizableObjectLogicProcessor.TakeFromPool(SynchronizableObjectType.Tripwire);
+			tripwireSynchronizableObject.transform.SetPositionAndRotation(fromPosition, Quaternion.identity);
+			this.SynchronizableObjectLogicProcessor.InitSyncObject(tripwireSynchronizableObject, fromPosition, Vector3.forward, -1);
+			tripwireSynchronizableObject.SetupGrenade(uEEC, profileId, fromPosition, toPosition);
+			this.SynchronizableObjectLogicProcessor.TripwireManager.AddTripwire(tripwireSynchronizableObject);
+			Vector3 position = (fromPosition + toPosition) * 0.5f;
+			Singleton<\uE34D>.Instance.PlantTripwire(tripwireSynchronizableObject, position);
+		}
+
+		// Token: 0x0600844C RID: 33868 RVA: 0x002B5938 File Offset: 0x002B3B38
+		public void SpawnTripwire(\uEB29 tripwire)
+		{
+			throw new NotImplementedException();
+		}
+
+		// Token: 0x0600844D RID: 33869 RVA: 0x002B5940 File Offset: 0x002B3B40
+		public virtual void TriggerTripwire(TripwireSynchronizableObject tripwire)
+		{
+			this.SynchronizableObjectLogicProcessor.TripwireManager.RemoveTripwire(tripwire);
+			tripwire.TriggerTripwire();
+		}
+
+		// Token: 0x0600844E RID: 33870 RVA: 0x002B595C File Offset: 0x002B3B5C
+		public virtual void DeActivateTripwire(TripwireSynchronizableObject tripwire)
+		{
+			this.SynchronizableObjectLogicProcessor.TripwireManager.RemoveTripwire(tripwire);
+			tripwire.DisableTripwire();
+		}
+
+		// Token: 0x0600844F RID: 33871 RVA: 0x002B5978 File Offset: 0x002B3B78
+		protected virtual void Start()
+		{
+			GameWorld._interactiveLootMask = LayerMask.GetMask(new string[]
+			{
+				\uF1F8.\uE000(27413),
+				\uF1F8.\uE000(11535),
+				\uF1F8.\uE000(27645)
+			});
+			GameWorld.\uE01D = LayerMask.GetMask(new string[]
+			{
+				\uF1F8.\uE000(27413),
+				\uF1F8.\uE000(11535),
+				\uF1F8.\uE000(27509),
+				\uF1F8.\uE000(27645)
+			});
+			GameWorld.\uE01E = LayerMask.GetMask(new string[]
+			{
+				\uF1F8.\uE000(27509)
+			});
+			GameWorld.\uE01F = LayerMask.GetMask(new string[]
+			{
+				\uF1F8.\uE000(48992),
+				\uF1F8.\uE000(27622)
+			});
+		}
+
+		// Token: 0x06008450 RID: 33872 RVA: 0x002B5A50 File Offset: 0x002B3C50
+		public virtual void ShotDelegate(\uF064 shotResult)
+		{
+			if (!shotResult.IsFlyingOutOfTime)
+			{
+				\uF061 damageInfo = new \uF061(EDamageType.Bullet, shotResult);
+				\uF060 shotID = new \uF060(shotResult.Ammo.Id, shotResult.FragmentIndex);
+				\uE870 playerHitInfo = shotResult.HittedBallisticCollider.ApplyHit(damageInfo, shotID);
+				shotResult.AddClientHitPosition(playerHitInfo);
+				\uEDA8 itemComponent = shotResult.Ammo.GetItemComponent<\uEDA8>();
+				if (itemComponent != null && shotResult.TimeSinceShot >= itemComponent.Template.FuzeArmTimeSec)
+				{
+					string explosionType = itemComponent.Template.ExplosionType;
+					if (!string.IsNullOrEmpty(explosionType))
+					{
+						if (shotResult.IsFirstHit)
+						{
+							Singleton<Effects>.Instance.EmitGrenade(explosionType, shotResult.HitPoint, shotResult.HitNormal, (float)(shotResult.IsForwardHit ? 1 : 0));
+						}
+					}
+					Grenade.Explosion(null, itemComponent, shotResult.HitPoint, shotResult.Player.iPlayer.ProfileId, this.SharedBallisticsCalculator, shotResult.Weapon, shotResult.HitNormal * 0.08f, false);
+				}
+			}
+		}
+
+		// Token: 0x06008451 RID: 33873 RVA: 0x002B5B68 File Offset: 0x002B3D68
+		public virtual void NetworkWorldOnGrenadeHit(Vector3 pos)
+		{
+		}
+
+		// Token: 0x06008452 RID: 33874 RVA: 0x002B5B6C File Offset: 0x002B3D6C
+		public virtual \uE870 HackShot(\uF061 damageInfo)
+		{
+			if (null == damageInfo.HittedBallisticCollider)
+			{
+				damageInfo.HittedBallisticCollider = this.\uE029;
+			}
+			return damageInfo.HittedBallisticCollider.ApplyHit(damageInfo, \uF060.EMPTY_SHOT_ID);
+		}
+
+		// Token: 0x06008453 RID: 33875 RVA: 0x002B5BA0 File Offset: 0x002B3DA0
+		protected void Update()
+		{
+			this.\uE013.RecordDeltaTime();
+			if (\uF01E.Instance.Camera == null)
+			{
+				return;
+			}
+			for (int i = this.\uE01B.Count - 1; i >= 0; i--)
+			{
+				AmmoPoolObject ammoPoolObject = this.\uE01B[i];
+				if (ammoPoolObject.ShouldBeDestroyed)
+				{
+					this.\uE01B.RemoveAt(i);
+					AssetPoolObject.ReturnToPool(ammoPoolObject.gameObject, true);
+				}
+			}
+		}
+
+		// Token: 0x06008454 RID: 33876 RVA: 0x002B5C28 File Offset: 0x002B3E28
+		public void DoWorldTick(float dt)
+		{
+			this.BeforeWorldTick(dt);
+			this.BeforePlayerTick(dt);
+			this.PlayerTick(dt);
+			this.BallisticsTick(dt);
+			this.AfterPlayerTick(dt);
+			this.OtherElseWorldTick(dt);
+			this.AfterWorldTick(dt);
+		}
+
+		// Token: 0x06008455 RID: 33877 RVA: 0x002B5C78 File Offset: 0x002B3E78
+		public void DoOtherWorldTick(float dt)
+		{
+			this.\uE00B(new Action<Player>(GameWorld.\uE00F));
+		}
+
+		// Token: 0x06008456 RID: 33878 RVA: 0x002B5C8C File Offset: 0x002B3E8C
+		protected virtual void BeforeWorldTick(float dt)
+		{
+			Action<float> uE = this.\uE011;
+			if (uE == null)
+			{
+				return;
+			}
+			uE(dt);
+		}
+
+		// Token: 0x06008457 RID: 33879 RVA: 0x002B5CA0 File Offset: 0x002B3EA0
+		protected virtual void BallisticsTick(float dt)
+		{
+			\uF05D sharedBallisticsCalculator = this.SharedBallisticsCalculator;
+			if (sharedBallisticsCalculator == null)
+			{
+				return;
+			}
+			sharedBallisticsCalculator.ManualUpdate(dt);
+		}
+
+		// Token: 0x06008458 RID: 33880 RVA: 0x002B5CB4 File Offset: 0x002B3EB4
+		protected virtual void BeforePlayerTick(float dt)
+		{
+		}
+
+		// Token: 0x06008459 RID: 33881 RVA: 0x002B5CB8 File Offset: 0x002B3EB8
+		protected virtual void PlayerTick(float dt)
+		{
+			this.\uE00B(new Action<Player>(GameWorld.\uE010));
+		}
+
+		// Token: 0x0600845A RID: 33882 RVA: 0x002B5CCC File Offset: 0x002B3ECC
+		protected virtual void AfterPlayerTick(float dt)
+		{
+			this.\uE00B(new Action<Player>(GameWorld.\uE011));
+		}
+
+		// Token: 0x0600845B RID: 33883 RVA: 0x002B5CE0 File Offset: 0x002B3EE0
+		protected virtual void OtherElseWorldTick(float dt)
+		{
+			this.SpeakerManager.ManualUpdate(dt);
+		}
+
+		// Token: 0x0600845C RID: 33884 RVA: 0x002B5CF0 File Offset: 0x002B3EF0
+		protected virtual void AfterWorldTick(float dt)
+		{
+		}
+
+		// Token: 0x0600845D RID: 33885 RVA: 0x002B5CF4 File Offset: 0x002B3EF4
+		public virtual void LateUpdateWorld(float dt)
+		{
+			Action<float> uE = this.\uE012;
+			if (uE == null)
+			{
+				return;
+			}
+			uE(dt);
+		}
+
+		// Token: 0x0600845E RID: 33886 RVA: 0x002B5D08 File Offset: 0x002B3F08
+		private void \uE00B(Action<Player> operation)
+		{
+			for (int i = this.AllAlivePlayersList.Count - 1; i >= 0; i--)
+			{
+				try
+				{
+					operation(this.AllAlivePlayersList[i]);
+				}
+				catch (Exception ex)
+				{
+					Debug.LogErrorFormat(\uF1F8.\uE000(191454), new object[]
+					{
+						this.AllAlivePlayersList[i].FullIdInfo,
+						ex
+					});
+				}
+			}
+		}
+
+		// Token: 0x0600845F RID: 33887 RVA: 0x002B5D84 File Offset: 0x002B3F84
+		protected virtual void OnDestroy()
+		{
+		}
+
+		// Token: 0x06008460 RID: 33888 RVA: 0x002B5D88 File Offset: 0x002B3F88
+		public virtual void Dispose()
+		{
+			using (\uE073.StartWithToken(\uF1F8.\uE000(191394)))
+			{
+				for (int i = this.LootList.Count - 1; i >= 0; i--)
+				{
+					try
+					{
+						\uE2FB uE2FB = this.LootList[i];
+						if ((UnityEngine.Object)uE2FB != null)
+						{
+							uE2FB.Kill();
+						}
+					}
+					catch (Exception exception)
+					{
+						Debug.LogException(exception);
+					}
+				}
+			}
+			foreach (AmmoPoolObject ammoPoolObject in this.\uE01B)
+			{
+				AssetPoolObject.ReturnToPool(ammoPoolObject.gameObject, true);
+			}
+			this.\uE01B.Clear();
+			this.LootList.Clear();
+			this.LootItems.Clear();
+			if (this.\uE025)
+			{
+				using (\uE073.StartWithToken(\uF1F8.\uE000(191400)))
+				{
+					if (this.ObjectsFactory != null)
+					{
+						this.ObjectsFactory.UnloadTemporaryPools(true);
+						this.ObjectsFactory.UnloadBundles();
+					}
+				}
+			}
+			if (this.\uE026 != null)
+			{
+				this.\uE026.Release();
+				this.\uE026 = null;
+			}
+			\uF05D clientBallisticCalculator = this.ClientBallisticCalculator;
+			if (clientBallisticCalculator != null)
+			{
+				clientBallisticCalculator.ClearShots();
+			}
+			\uF05D sharedBallisticsCalculator = this.SharedBallisticsCalculator;
+			if (sharedBallisticsCalculator != null)
+			{
+				sharedBallisticsCalculator.ClearShots();
+			}
+			\uE6A0 clientShellingController = this.ClientShellingController;
+			if (clientShellingController != null)
+			{
+				clientShellingController.Dispose();
+			}
+			\uE300 serverShellingController = this.ServerShellingController;
+			if (serverShellingController != null)
+			{
+				serverShellingController.Dispose();
+			}
+			\uE529 clientBroadcastSyncController = this.ClientBroadcastSyncController;
+			if (clientBroadcastSyncController != null)
+			{
+				clientBroadcastSyncController.Dispose();
+			}
+			this.CompositeDisposable.Dispose();
+			this.ExfiltrationController.Dispose();
+			\uE791 transitController = this.TransitController;
+			if (transitController != null)
+			{
+				transitController.Dispose();
+			}
+			\uE916 runddansController = this.RunddansController;
+			if (runddansController != null)
+			{
+				runddansController.Dispose();
+			}
+			this.BufferZoneController.Dispose();
+			\uE793 halloweenEventController = this.HalloweenEventController;
+			if (halloweenEventController != null)
+			{
+				halloweenEventController.Dispose();
+			}
+			\uE39F uE02D = this.\uE02D;
+			if (uE02D != null)
+			{
+				uE02D.Dispose();
+			}
+			this.\uE02D = null;
+			\uEFC1 btrController = this.BtrController;
+			if (btrController != null)
+			{
+				btrController.Dispose();
+			}
+			\uF003 triggersEmitter = this.TriggersEmitter;
+			if (triggersEmitter != null)
+			{
+				triggersEmitter.Dispose();
+			}
+			\uF00A.Instance.Dispose();
+			this.\uE02A = null;
+			Action uE2 = GameWorld.\uE000;
+			if (uE2 != null)
+			{
+				uE2();
+			}
+			GameWorld.\uE000 = null;
+			this.\uE00C();
+		}
+
+		// Token: 0x06008461 RID: 33889 RVA: 0x002B600C File Offset: 0x002B420C
+		private void \uE00C()
+		{
+			foreach (KeyValuePair<string, \uE703> keyValuePair in this.AllPlayerBridgesEverExisted)
+			{
+				\uE703 value = keyValuePair.Value;
+				if (value != null)
+				{
+					value.Dispose();
+				}
+			}
+			this.allAlivePlayersByID.Clear();
+			this.AllAlivePlayersList.Clear();
+			this.AllAlivePlayerBridges.Clear();
+			this.AllAlivePlayerBridgesByCollider.Clear();
+			this.AllPlayerBridgesEverExisted.Clear();
+			this.allObservedPlayersByID.Clear();
+		}
+
+		// Token: 0x06008462 RID: 33890 RVA: 0x002B60AC File Offset: 0x002B42AC
+		public static bool InteractionSense(Vector3 origin, Vector3 direction, float radius, float distance)
+		{
+			RaycastHit raycastHit;
+			bool flag = Physics.SphereCast(origin, radius, direction, out raycastHit, distance, GameWorld._interactiveLootMask);
+			LootItem lootItem = null;
+			Switch x = null;
+			if (flag)
+			{
+				lootItem = raycastHit.collider.gameObject.GetComponentInParent<LootItem>();
+				if (lootItem == null)
+				{
+					Switch component = raycastHit.collider.gameObject.GetComponent<Switch>();
+					if (component != null && component.Operatable && component.DoorState == EDoorState.Shut)
+					{
+						x = component;
+					}
+				}
+			}
+			if (lootItem != null && !(lootItem is Corpse))
+			{
+				Weapon weapon = lootItem.Item as Weapon;
+				if (weapon != null)
+				{
+					if (weapon.IsOneOff)
+					{
+						if (weapon.Repairable.Durability == 0f)
+						{
+							goto IL_CD;
+						}
+					}
+				}
+				if (lootItem.enabled)
+				{
+					return true;
+				}
+			}
+			IL_CD:
+			return x != null;
+		}
+
+		// Token: 0x06008463 RID: 33891 RVA: 0x002B6190 File Offset: 0x002B4390
+		[CanBeNull]
+		public static GameObject FindInteractable(Ray ray, out RaycastHit hit)
+		{
+			GameObject gameObject = \uE36B.Raycast(ray, out hit, Mathf.Max(EFTHardSettings.Instance.LOOT_RAYCAST_DISTANCE, EFTHardSettings.Instance.PLAYER_RAYCAST_DISTANCE + EFTHardSettings.Instance.BEHIND_CAST), GameWorld.\uE01D) ? hit.collider.gameObject : null;
+			if (gameObject)
+			{
+				if (!Physics.Linecast(ray.origin, hit.point, GameWorld.\uE01F))
+				{
+					return gameObject;
+				}
+			}
+			return null;
+		}
+
+		// Token: 0x06008464 RID: 33892 RVA: 0x002B6214 File Offset: 0x002B4414
+		public WorldInteractiveObject FindDoor(string doorId)
+		{
+			return this.\uE02E.FindDoor(doorId);
+		}
+
+		// Token: 0x06008465 RID: 33893 RVA: 0x002B6224 File Offset: 0x002B4424
+		public IEnumerable<WorldInteractiveObject> WorldInteractiveObjects()
+		{
+			return this.\uE02E.WorldInteractiveObjects();
+		}
+
+		// Token: 0x06008466 RID: 33894 RVA: 0x002B6234 File Offset: 0x002B4434
+		public bool TryGetLampController(string id, out LampController lampController)
+		{
+			return this.\uE017.TryGetValue(id, out lampController);
+		}
+
+		// Token: 0x06008467 RID: 33895 RVA: 0x002B6244 File Offset: 0x002B4444
+		public bool TryGetControlledLampGroup(ulong id, out ControlledLampGroup controlledLampGroup)
+		{
+			return this.\uE018.TryGetValue(id, out controlledLampGroup);
+		}
+
+		// Token: 0x06008468 RID: 33896 RVA: 0x002B6254 File Offset: 0x002B4454
+		public StationaryWeapon FindStationaryWeapon(string id)
+		{
+			GameWorld.\uE010 uE = new GameWorld.\uE010();
+			uE.id = id;
+			return Enumerable.FirstOrDefault<StationaryWeapon>(LocationScene.GetAllObjects<StationaryWeapon>(false), new Func<StationaryWeapon, bool>(uE.\uE000));
+		}
+
+		// Token: 0x06008469 RID: 33897 RVA: 0x002B6288 File Offset: 0x002B4488
+		public StationaryWeapon FindStationaryWeaponByItemId(string itemId)
+		{
+			GameWorld.\uE011 uE = new GameWorld.\uE011();
+			uE.itemId = itemId;
+			return Enumerable.FirstOrDefault<StationaryWeapon>(LocationScene.GetAllObjects<StationaryWeapon>(false), new Func<StationaryWeapon, bool>(uE.\uE000));
+		}
+
+		// Token: 0x0600846A RID: 33898 RVA: 0x002B62BC File Offset: 0x002B44BC
+		public virtual void RegisterPlayer(IPlayer iPlayer)
+		{
+			this.RegisteredPlayers.Add(iPlayer);
+			Collider collider = iPlayer.CharacterController.GetCollider();
+			Player player = iPlayer as Player;
+			string profileId = iPlayer.ProfileId;
+			Transform transform;
+			if (player != null)
+			{
+				if (!this.AllAlivePlayersList.Contains(player))
+				{
+					this.AllAlivePlayersList.Add(player);
+				}
+				this.allAlivePlayersByID[player.ProfileId] = player;
+				this.\uE016[player.ProfileId] = player;
+				if (iPlayer.IsYourPlayer)
+				{
+					this.MainPlayer = player;
+				}
+				if (\uE2F9.Config.UseSpiritPlayer)
+				{
+					transform = player.Spirit.GetActiveTransform();
+					Collider collider2 = player.Spirit.CharacterController.GetCollider();
+					this.PlayersColliders[collider2] = player;
+					Collider collider3 = player.Spirit.PlayerSpiritAura.GetCollider();
+					this.PlayersColliders[collider3] = player;
+				}
+				else
+				{
+					transform = player.gameObject.transform;
+				}
+				player.SetDeltaTimeDelegate(new Player.\uE010(this.\uE012));
+				this.AllAlivePlayerBridges[profileId] = new \uE704(player);
+			}
+			else
+			{
+				transform = iPlayer.Transform.Original;
+			}
+			this.ItemOwners.Add(iPlayer.InventoryController, new GameWorld.\uE000
+			{
+				Transform = transform
+			});
+			this.AllAlivePlayerBridgesByCollider[collider] = this.AllAlivePlayerBridges[profileId];
+			this.AllPlayerBridgesEverExisted[profileId] = this.AllAlivePlayerBridges[profileId];
+			this.PlayersColliders[collider] = iPlayer;
+			Action<IPlayer> uE = this.\uE010;
+			if (uE == null)
+			{
+				return;
+			}
+			uE(iPlayer);
+		}
+
+		// Token: 0x0600846B RID: 33899 RVA: 0x002B6478 File Offset: 0x002B4678
+		public virtual void UnregisterPlayer(IPlayer iPlayer)
+		{
+			if (!this.RegisteredPlayers.Contains(iPlayer))
+			{
+				return;
+			}
+			this.RegisteredPlayers.Remove(iPlayer);
+			Collider collider = iPlayer.CharacterController.GetCollider();
+			this.PlayersColliders.Remove(collider);
+			this.allAlivePlayersByID.Remove(iPlayer.ProfileId);
+			this.AllAlivePlayerBridges.Remove(iPlayer.ProfileId);
+			this.AllAlivePlayerBridgesByCollider.Remove(collider);
+			this.allObservedPlayersByID.Remove(iPlayer.ProfileId);
+			Player player = iPlayer as Player;
+			if (player != null)
+			{
+				this.AllAlivePlayersList.Remove(player);
+				this.ItemOwners.Remove(player.InventoryController);
+				if (\uE2F9.Config.UseSpiritPlayer)
+				{
+					Collider collider2 = player.Spirit.CharacterController.GetCollider();
+					this.PlayersColliders.Remove(collider2);
+					Collider collider3 = player.Spirit.PlayerSpiritAura.GetCollider();
+					this.PlayersColliders.Remove(collider3);
+				}
+				player.SetDeltaTimeDelegate(null);
+			}
+		}
+
+		// Token: 0x0600846C RID: 33900 RVA: 0x002B65A4 File Offset: 0x002B47A4
+		public virtual void RegisterPlayerCollider(Player player, Collider playerCollider)
+		{
+			this.PlayersColliders[playerCollider] = player;
+		}
+
+		// Token: 0x0600846D RID: 33901 RVA: 0x002B65B4 File Offset: 0x002B47B4
+		public virtual void UnregisterPlayerCollider(Collider playerCollider)
+		{
+			this.PlayersColliders.Remove(playerCollider);
+		}
+
+		// Token: 0x0600846E RID: 33902 RVA: 0x002B65C4 File Offset: 0x002B47C4
+		internal Task \uE00D(Player player)
+		{
+			GameWorld.\uE016 uE;
+			uE.<>t__builder = AsyncTaskMethodBuilder.Create();
+			uE.<>4__this = this;
+			uE.player = player;
+			uE.<>1__state = -1;
+			uE.<>t__builder.Start<GameWorld.\uE016>(ref uE);
+			return uE.<>t__builder.Task;
+		}
+
+		// Token: 0x0600846F RID: 33903 RVA: 0x002B661C File Offset: 0x002B481C
+		[CanBeNull]
+		public Player GetPlayerByCollider(Collider col)
+		{
+			IPlayer player;
+			this.PlayersColliders.TryGetValue(col, out player);
+			Player player2 = player as Player;
+			if (player2 != null)
+			{
+				return player2;
+			}
+			return null;
+		}
+
+		// Token: 0x06008470 RID: 33904 RVA: 0x002B6650 File Offset: 0x002B4850
+		public \uF192<ItemAddress> ToItemAddress(\uE7D0 descriptor)
+		{
+			IItemOwner itemOwner;
+			if (descriptor is \uE7D1)
+			{
+				MongoID? parentId = descriptor.Container.ParentId;
+				itemOwner = this.FindOwnerById((parentId != null) ? parentId.GetValueOrDefault() : null);
+				if (itemOwner == null)
+				{
+					parentId = descriptor.Container.ParentId;
+					return new GameWorld.\uE001((parentId != null) ? parentId.GetValueOrDefault() : null);
+				}
+			}
+			else
+			{
+				MongoID? parentId = descriptor.Container.ParentId;
+				\uF192<Item> uF = this.FindItemById((parentId != null) ? parentId.GetValueOrDefault() : null);
+				if (uF.Failed)
+				{
+					return uF.Error;
+				}
+				itemOwner = uF.Value.Parent.GetOwnerOrNull();
+				if (itemOwner == null)
+				{
+					return new GameWorld.\uE00B(uF.Value);
+				}
+			}
+			ItemAddress value;
+			try
+			{
+				value = itemOwner.ToItemAddress(descriptor);
+			}
+			catch (\uE7D8)
+			{
+				MongoID? parentId = descriptor.Container.ParentId;
+				return new GameWorld.\uE002((parentId != null) ? parentId.GetValueOrDefault() : null, descriptor.Container.ContainerId);
+			}
+			return value;
+		}
+
+		// Token: 0x06008471 RID: 33905 RVA: 0x002B67AC File Offset: 0x002B49AC
+		[CanBeNull]
+		public IItemOwner FindOwnerById(string ownerId)
+		{
+			return this.FindOwnerWithWorldData(ownerId).Key;
+		}
+
+		// Token: 0x06008472 RID: 33906 RVA: 0x002B67C8 File Offset: 0x002B49C8
+		public KeyValuePair<IItemOwner, GameWorld.\uE000> FindOwnerWithWorldData(string ownerId)
+		{
+			GameWorld.\uE012 uE = new GameWorld.\uE012();
+			uE.ownerId = ownerId;
+			return Enumerable.FirstOrDefault<KeyValuePair<IItemOwner, GameWorld.\uE000>>(this.ItemOwners, new Func<KeyValuePair<IItemOwner, GameWorld.\uE000>, bool>(uE.\uE000));
+		}
+
+		// Token: 0x06008473 RID: 33907 RVA: 0x002B67FC File Offset: 0x002B49FC
+		public \uF192<Item> FindItemById(string itemId)
+		{
+			return this.FindItemWithWorldData(itemId).Cast<Item>(new Func<ValueTuple<Item, GameWorld.\uE000>, Item>(GameWorld.<>c.<>9.\uE006));
+		}
+
+		// Token: 0x06008474 RID: 33908 RVA: 0x002B6838 File Offset: 0x002B4A38
+		[return: TupleElementNames(new string[]
+		{
+			"item",
+			"data"
+		})]
+		public \uF192<ValueTuple<Item, GameWorld.\uE000>> FindItemWithWorldData(string itemId)
+		{
+			using (\uF181.BeginSampleWithToken(\uF1F8.\uE000(191383), \uF1F8.\uE000(191374)))
+			{
+				foreach (KeyValuePair<IItemOwner, GameWorld.\uE000> keyValuePair in this.ItemOwners)
+				{
+					IItemOwner itemOwner;
+					GameWorld.\uE000 uE2;
+					keyValuePair.Deconstruct(out itemOwner, out uE2);
+					IItemOwner itemOwner2 = itemOwner;
+					GameWorld.\uE000 uE3 = uE2;
+					Item item = null;
+					try
+					{
+						if (!itemOwner2.TryFindItem(itemId, out item))
+						{
+							continue;
+						}
+					}
+					catch (Exception exception)
+					{
+						Debug.LogException(exception);
+					}
+					GameWorld.\uE000 item2 = uE3;
+					item2.ItemOwner = itemOwner2;
+					return new ValueTuple<Item, GameWorld.\uE000>(item, item2);
+				}
+			}
+			return new GameWorld.\uE003(itemId);
+		}
+
+		// Token: 0x06008475 RID: 33909 RVA: 0x002B691C File Offset: 0x002B4B1C
+		public int CulledPlayersCount()
+		{
+			int num = 0;
+			foreach (IPlayer player in this.RegisteredPlayers)
+			{
+				ObservedPlayerView observedPlayerView = player as ObservedPlayerView;
+				if (observedPlayerView == null)
+				{
+					Player player2 = player as Player;
+					if (player2 != null)
+					{
+						num += (player2.IsVisible ? 1 : 0);
+					}
+				}
+				else
+				{
+					num += (observedPlayerView.IsVisible ? 1 : 0);
+				}
+			}
+			return num;
+		}
+
+		// Token: 0x06008476 RID: 33910 RVA: 0x002B69A4 File Offset: 0x002B4BA4
+		public int TotalPlayersCountToCull()
+		{
+			int num = 0;
+			using (List<IPlayer>.Enumerator enumerator = this.RegisteredPlayers.GetEnumerator())
+			{
+				while (enumerator.MoveNext())
+				{
+					if (!enumerator.Current.IsYourPlayer)
+					{
+						num++;
+					}
+				}
+			}
+			return num;
+		}
+
+		// Token: 0x17001260 RID: 4704
+		// (get) Token: 0x06008477 RID: 33911 RVA: 0x002B6A00 File Offset: 0x002B4C00
+		public virtual ulong TotalOutgoingBytes
+		{
+			get
+			{
+				return 0UL;
+			}
+		}
+
+		// Token: 0x17001261 RID: 4705
+		// (get) Token: 0x06008478 RID: 33912 RVA: 0x002B6A04 File Offset: 0x002B4C04
+		public virtual ulong TotalIngoingBytes
+		{
+			get
+			{
+				return 0UL;
+			}
+		}
+
+		// Token: 0x06008479 RID: 33913 RVA: 0x002B6A08 File Offset: 0x002B4C08
+		public void OnSmokeGrenadesDeserialized(List<\uE37F> netGrenadeData)
+		{
+			foreach (\uE37F uE37F in netGrenadeData)
+			{
+				SmokeGrenade grenade = this.\uE024.CreateStillSmokeGrenade(uE37F.Id, uE37F.Template, uE37F.Position, uE37F.Orientation, (float)uE37F.Time, (uE37F.PlatformId > -1) ? this.Platforms[(int)uE37F.PlatformId] : null);
+				this.RegisterGrenade(grenade);
+			}
+		}
+
+		// Token: 0x0600847A RID: 33914 RVA: 0x002B6AA0 File Offset: 0x002B4CA0
+		private void \uE00E(WorldInteractiveObject door, EDoorState stateBefore, EDoorState stateAfter)
+		{
+			if (stateAfter != EDoorState.Interacting)
+			{
+				if (stateAfter != EDoorState.Breaching)
+				{
+					this.\uE02C.Remove(door);
+					return;
+				}
+			}
+			this.\uE02C.Add(door);
+		}
+
+		// Token: 0x0600847B RID: 33915 RVA: 0x002B6AD0 File Offset: 0x002B4CD0
+		public int CanPlayerSeepThrough(Collider collider)
+		{
+			if (collider.gameObject.layer == \uE3CA.PlayerLayer)
+			{
+				using (List<IPlayer>.Enumerator enumerator = this.RegisteredPlayers.GetEnumerator())
+				{
+					while (enumerator.MoveNext())
+					{
+						if (enumerator.Current.CharacterController.GetCollider() == collider)
+						{
+							return 0;
+						}
+					}
+					return -1;
+				}
+			}
+			if (collider.gameObject.layer == \uE3CA.DoorLayer)
+			{
+				for (int i = 0; i < this.\uE02C.Count; i++)
+				{
+					if (this.\uE02C[i].Collider == collider)
+					{
+						return 1;
+					}
+				}
+			}
+			return -1;
+		}
+
+		// Token: 0x0600847C RID: 33916 RVA: 0x002B6B9C File Offset: 0x002B4D9C
+		public void RegisterBorderZones()
+		{
+			this.BorderZones = Enumerable.ToArray<BorderZone>(LocationScene.GetAllObjects<BorderZone>(false));
+			for (int i = 0; i < this.BorderZones.Length; i++)
+			{
+				this.BorderZones[i].Id = i;
+			}
+			this.\uE02E.SubscribeToBorderZones(this.BorderZones);
+		}
+
+		// Token: 0x0600847D RID: 33917 RVA: 0x002B6BFC File Offset: 0x002B4DFC
+		public void RegisterRestrictableZones()
+		{
+			this.\uE028 = Enumerable.ToArray<BaseRestrictableZone>(LocationScene.GetAllObjects<BaseRestrictableZone>(false));
+		}
+
+		// Token: 0x0600847E RID: 33918 RVA: 0x002B6C10 File Offset: 0x002B4E10
+		public virtual void OnGameStarted()
+		{
+			Action uE00F = this.\uE00F;
+			if (uE00F == null)
+			{
+				return;
+			}
+			uE00F();
+		}
+
+		// Token: 0x06008480 RID: 33920 RVA: 0x002B6DFC File Offset: 0x002B4FFC
+		[CompilerGenerated]
+		internal static void \uE00F(Player player)
+		{
+			if (player.UpdateQueue == EUpdateQueue.Update)
+			{
+				player.FixedUpdateTick();
+				return;
+			}
+			if (player.UpdateQueue == EUpdateQueue.FixedUpdate)
+			{
+				player.UpdateTick();
+			}
+		}
+
+		// Token: 0x06008481 RID: 33921 RVA: 0x002B6E24 File Offset: 0x002B5024
+		[CompilerGenerated]
+		internal static void \uE010(Player player)
+		{
+			if (player.UpdateQueue == EUpdateQueue.Update)
+			{
+				player.UpdateTick();
+				return;
+			}
+			if (player.UpdateQueue == EUpdateQueue.FixedUpdate)
+			{
+				player.FixedUpdateTick();
+			}
+		}
+
+		// Token: 0x06008482 RID: 33922 RVA: 0x002B6E4C File Offset: 0x002B504C
+		[CompilerGenerated]
+		internal static void \uE011(Player player)
+		{
+			player.AfterMainTick();
+		}
+
+		// Token: 0x06008483 RID: 33923 RVA: 0x002B6E54 File Offset: 0x002B5054
+		[CompilerGenerated]
+		private float \uE012()
+		{
+			return this.DeltaTime;
+		}
+
+		// Token: 0x040079D7 RID: 31191
+		[CompilerGenerated]
+		private static Action \uE000;
+
+		// Token: 0x040079D8 RID: 31192
+		[CompilerGenerated]
+		private \uE791 \uE001;
+
+		// Token: 0x040079D9 RID: 31193
+		[CompilerGenerated]
+		private \uE916 \uE002;
+
+		// Token: 0x040079DA RID: 31194
+		[CompilerGenerated]
+		private \uE693 \uE003;
+
+		// Token: 0x040079DB RID: 31195
+		[CompilerGenerated]
+		private \uF026 \uE004;
+
+		// Token: 0x040079DC RID: 31196
+		[CompilerGenerated]
+		private \uE793 \uE005;
+
+		// Token: 0x040079DD RID: 31197
+		[CompilerGenerated]
+		private \uE39F \uE006;
+
+		// Token: 0x040079DE RID: 31198
+		[CompilerGenerated]
+		private \uEFC1 \uE007;
+
+		// Token: 0x040079DF RID: 31199
+		[CompilerGenerated]
+		private TriggersModule \uE008;
+
+		// Token: 0x040079E0 RID: 31200
+		[CompilerGenerated]
+		private \uF003 \uE009;
+
+		// Token: 0x040079E1 RID: 31201
+		[CompilerGenerated]
+		private \uE354 \uE00A;
+
+		// Token: 0x040079E2 RID: 31202
+		public readonly \uE905 TraderServicesHandler = new \uE905();
+
+		// Token: 0x040079E3 RID: 31203
+		[CompilerGenerated]
+		private \uE300 \uE00B;
+
+		// Token: 0x040079E4 RID: 31204
+		[CompilerGenerated]
+		private \uE6A0 \uE00C;
+
+		// Token: 0x040079E5 RID: 31205
+		[CompilerGenerated]
+		private \uE529 \uE00D;
+
+		// Token: 0x040079E6 RID: 31206
+		[CompilerGenerated]
+		private string \uE00E;
+
+		// Token: 0x040079E7 RID: 31207
+		public GameDateTime GameDateTime;
+
+		// Token: 0x040079E8 RID: 31208
+		public GameWorldUnityTickListener UnityTickListener;
+
+		// Token: 0x040079E9 RID: 31209
+		public bool SpeedLimitsEnabled;
+
+		// Token: 0x040079EA RID: 31210
+		public \uE894.Config SpeedLimits = \uE894.DefaultSpeedLimits;
+
+		// Token: 0x040079EB RID: 31211
+		public MongoID? CurrentProfileId;
+
+		// Token: 0x040079EC RID: 31212
+		[CompilerGenerated]
+		private Action \uE00F;
+
+		// Token: 0x040079ED RID: 31213
+		[CompilerGenerated]
+		private Action<IPlayer> \uE010;
+
+		// Token: 0x040079EE RID: 31214
+		[CompilerGenerated]
+		private Action<float> \uE011;
+
+		// Token: 0x040079EF RID: 31215
+		[CompilerGenerated]
+		private Action<float> \uE012;
+
+		// Token: 0x040079F0 RID: 31216
+		private readonly \uE3C9 \uE013 = new \uE3C9();
+
+		// Token: 0x040079F1 RID: 31217
+		public AudioSourceCulling AudioSourceCulling;
+
+		// Token: 0x040079F2 RID: 31218
+		public \uE3D4<\uF065> TrajectoryCalculatorPool = new \uE3D4<\uF065>(40, new Func<\uF065>(GameWorld.<>c.<>9.\uE007), new Action<\uF065>(GameWorld.<>c.<>9.\uE008), null);
+
+		// Token: 0x040079F3 RID: 31219
+		[CompilerGenerated]
+		private \uF05D \uE014;
+
+		// Token: 0x040079F4 RID: 31220
+		private BallisticsCalculator \uE015;
+
+		// Token: 0x040079F5 RID: 31221
+		public readonly List<\uE2FB> LootList = new List<\uE2FB>(1000);
+
+		// Token: 0x040079F6 RID: 31222
+		public readonly Dictionary<IItemOwner, GameWorld.\uE000> ItemOwners = new Dictionary<IItemOwner, GameWorld.\uE000>(100);
+
+		// Token: 0x040079F7 RID: 31223
+		public readonly \uE3C2<int, LootItem> LootItems = new \uE3C2<int, LootItem>(1000);
+
+		// Token: 0x040079F8 RID: 31224
+		public readonly Dictionary<int, ObservedCorpse> ObservedPlayersCorpses = new Dictionary<int, ObservedCorpse>(60);
+
+		// Token: 0x040079F9 RID: 31225
+		public readonly List<\uE654> AllLoot = new List<\uE654>();
+
+		// Token: 0x040079FA RID: 31226
+		public readonly List<IPlayer> RegisteredPlayers = new List<IPlayer>(40);
+
+		// Token: 0x040079FB RID: 31227
+		private readonly Dictionary<string, Player> \uE016 = new Dictionary<string, Player>();
+
+		// Token: 0x040079FC RID: 31228
+		private readonly Dictionary<string, LampController> \uE017 = new Dictionary<string, LampController>();
+
+		// Token: 0x040079FD RID: 31229
+		private readonly Dictionary<ulong, ControlledLampGroup> \uE018 = new Dictionary<ulong, ControlledLampGroup>();
+
+		// Token: 0x040079FE RID: 31230
+		public readonly Dictionary<string, Player> allAlivePlayersByID = new Dictionary<string, Player>();
+
+		// Token: 0x040079FF RID: 31231
+		public readonly List<Player> AllAlivePlayersList = new List<Player>();
+
+		// Token: 0x04007A00 RID: 31232
+		protected readonly Dictionary<string, \uE703> AllAlivePlayerBridges = new Dictionary<string, \uE703>();
+
+		// Token: 0x04007A01 RID: 31233
+		protected readonly Dictionary<Collider, \uE703> AllAlivePlayerBridgesByCollider = new Dictionary<Collider, \uE703>();
+
+		// Token: 0x04007A02 RID: 31234
+		protected readonly Dictionary<string, \uE703> AllPlayerBridgesEverExisted = new Dictionary<string, \uE703>();
+
+		// Token: 0x04007A03 RID: 31235
+		public Dictionary<string, ObservedPlayerView> allObservedPlayersByID = new Dictionary<string, ObservedPlayerView>();
+
+		// Token: 0x04007A04 RID: 31236
+		public MovingPlatform.\uE001[] PlatformAdapters = Array.Empty<MovingPlatform.\uE001>();
+
+		// Token: 0x04007A05 RID: 31237
+		public BorderZone[] BorderZones;
+
+		// Token: 0x04007A06 RID: 31238
+		private MovingPlatform[] \uE019;
+
+		// Token: 0x04007A07 RID: 31239
+		public Player MainPlayer;
+
+		// Token: 0x04007A08 RID: 31240
+		protected readonly \uE3F4 CompositeDisposable = new \uE3F4();
+
+		// Token: 0x04007A09 RID: 31241
+		[CompilerGenerated]
+		private readonly Dictionary<Collider, IPlayer> \uE01A;
+
+		// Token: 0x04007A0A RID: 31242
+		private readonly List<AmmoPoolObject> \uE01B = new List<AmmoPoolObject>(100);
+
+		// Token: 0x04007A0B RID: 31243
+		private readonly List<\uE654> \uE01C = new List<\uE654>();
+
+		// Token: 0x04007A0C RID: 31244
+		protected static int _interactiveLootMask;
+
+		// Token: 0x04007A0D RID: 31245
+		private static int \uE01D;
+
+		// Token: 0x04007A0E RID: 31246
+		private static int \uE01E;
+
+		// Token: 0x04007A0F RID: 31247
+		private static int \uE01F;
+
+		// Token: 0x04007A10 RID: 31248
+		public SpeakerManager SpeakerManager;
+
+		// Token: 0x04007A11 RID: 31249
+		private static int \uE020;
+
+		// Token: 0x04007A12 RID: 31250
+		private EUpdateQueue \uE021;
+
+		// Token: 0x04007A13 RID: 31251
+		[CompilerGenerated]
+		private \uEB2B \uE022;
+
+		// Token: 0x04007A14 RID: 31252
+		public \uE35A MineManager;
+
+		// Token: 0x04007A15 RID: 31253
+		[CompilerGenerated]
+		private Action<\uE2FB> \uE023;
+
+		// Token: 0x04007A16 RID: 31254
+		protected readonly Dictionary<int, Turnable> Turnables = new Dictionary<int, Turnable>(512);
+
+		// Token: 0x04007A17 RID: 31255
+		public readonly \uE3C2<int, WindowBreaker> Windows = new \uE3C2<int, WindowBreaker>(512);
+
+		// Token: 0x04007A18 RID: 31256
+		public readonly \uE3C2<int, Throwable> Grenades = new \uE3C2<int, Throwable>(0);
+
+		// Token: 0x04007A19 RID: 31257
+		public List<\uE70E> GrenadesCriticalStates = new List<\uE70E>();
+
+		// Token: 0x04007A1A RID: 31258
+		public List<\uE70D> ArtilleryProjectilesStates = new List<\uE70D>();
+
+		// Token: 0x04007A1B RID: 31259
+		private \uE37E \uE024;
+
+		// Token: 0x04007A1C RID: 31260
+		private bool \uE025;
+
+		// Token: 0x04007A1D RID: 31261
+		private \uF1C8<\uF1C2>.\uE002 \uE026;
+
+		// Token: 0x04007A1E RID: 31262
+		public \uE34D.\uE005 OnThrowItem;
+
+		// Token: 0x04007A1F RID: 31263
+		public \uE34D.\uE006 OnTakeItem;
+
+		// Token: 0x04007A20 RID: 31264
+		private readonly List<GameObject> \uE027 = new List<GameObject>(100);
+
+		// Token: 0x04007A21 RID: 31265
+		private BaseRestrictableZone[] \uE028;
+
+		// Token: 0x04007A22 RID: 31266
+		protected EffectsCommutator _effectsCommutator;
+
+		// Token: 0x04007A23 RID: 31267
+		private BallisticCollider \uE029;
+
+		// Token: 0x04007A24 RID: 31268
+		internal World \uE02A;
+
+		// Token: 0x04007A25 RID: 31269
+		private World \uE02B;
+
+		// Token: 0x04007A26 RID: 31270
+		protected \uE90C ObjectsFactory;
+
+		// Token: 0x04007A27 RID: 31271
+		private List<WorldInteractiveObject> \uE02C = new List<WorldInteractiveObject>();
+
+		// Token: 0x02001477 RID: 5239
+		public struct \uE000
+		{
+			// Token: 0x04007A28 RID: 31272
+			public Transform Transform;
+
+			// Token: 0x04007A29 RID: 31273
+			public bool DoNotPerformPickUpValidation;
+
+			// Token: 0x04007A2A RID: 31274
+			public IItemOwner ItemOwner;
+		}
+
+		// Token: 0x02001478 RID: 5240
+		public class \uE001 : Error
+		{
+			// Token: 0x06008484 RID: 33924 RVA: 0x002B6E5C File Offset: 0x002B505C
+			public \uE001(string itemOwnerId)
+			{
+				this.ItemOwnerId = itemOwnerId;
+			}
+
+			// Token: 0x06008485 RID: 33925 RVA: 0x002B6E6C File Offset: 0x002B506C
+			public override string ToString()
+			{
+				return \uF1F8.\uE000(191072) + this.ItemOwnerId;
+			}
+
+			// Token: 0x04007A2B RID: 31275
+			public readonly string ItemOwnerId;
+		}
+
+		// Token: 0x02001479 RID: 5241
+		public class \uE002 : Error
+		{
+			// Token: 0x06008486 RID: 33926 RVA: 0x002B6E84 File Offset: 0x002B5084
+			public \uE002(string parentId, string containerId)
+			{
+				this.\uE000 = parentId;
+				this.\uE001 = containerId;
+			}
+
+			// Token: 0x06008487 RID: 33927 RVA: 0x002B6EA0 File Offset: 0x002B50A0
+			public override string ToString()
+			{
+				return \uF1F8.\uE000(191044) + this.\uE000 + \uF1F8.\uE000(190996) + this.\uE001;
+			}
+
+			// Token: 0x04007A2C RID: 31276
+			private readonly string \uE000;
+
+			// Token: 0x04007A2D RID: 31277
+			private readonly string \uE001;
+		}
+
+		// Token: 0x0200147A RID: 5242
+		public class \uE003 : Error
+		{
+			// Token: 0x06008488 RID: 33928 RVA: 0x002B6EC8 File Offset: 0x002B50C8
+			public \uE003(string itemId)
+			{
+				this.ItemId = itemId;
+			}
+
+			// Token: 0x06008489 RID: 33929 RVA: 0x002B6ED8 File Offset: 0x002B50D8
+			public override string ToString()
+			{
+				return \uF1F8.\uE000(190980) + this.ItemId;
+			}
+
+			// Token: 0x04007A2E RID: 31278
+			public readonly string ItemId;
+		}
+
+		// Token: 0x0200147B RID: 5243
+		public sealed class \uE004 : Error
+		{
+			// Token: 0x0600848A RID: 33930 RVA: 0x002B6EF0 File Offset: 0x002B50F0
+			public \uE004(Item item, Vector3 playerPosition, Vector3 itemPosition)
+			{
+				this.Item = item;
+				this.PlayerPosition = playerPosition;
+				this.ItemPosition = itemPosition;
+			}
+
+			// Token: 0x0600848B RID: 33931 RVA: 0x002B6F14 File Offset: 0x002B5114
+			public override string ToString()
+			{
+				return string.Format(\uF1F8.\uE000(191206), this.Item, this.ItemPosition, this.PlayerPosition);
+			}
+
+			// Token: 0x04007A2F RID: 31279
+			public readonly Item Item;
+
+			// Token: 0x04007A30 RID: 31280
+			public readonly Vector3 PlayerPosition;
+
+			// Token: 0x04007A31 RID: 31281
+			public readonly Vector3 ItemPosition;
+		}
+
+		// Token: 0x0200147C RID: 5244
+		public sealed class \uE005 : Error
+		{
+			// Token: 0x0600848C RID: 33932 RVA: 0x002B6F44 File Offset: 0x002B5144
+			public \uE005(Player currentPlayer, Item item, [CanBeNull] Player fromPlayer, [CanBeNull] Player toPlayer)
+			{
+				this.Item = item;
+				this.CurrentPlayer = currentPlayer;
+				this.FromPlayer = fromPlayer;
+				this.ToPlayer = toPlayer;
+				this.KnownDirection = true;
+			}
+
+			// Token: 0x0600848D RID: 33933 RVA: 0x002B6F7C File Offset: 0x002B517C
+			public \uE005(Player currentPlayer, Player anotherPlayer, Item item)
+			{
+				this.Item = item;
+				this.CurrentPlayer = currentPlayer;
+				this.ToPlayer = anotherPlayer;
+				this.KnownDirection = false;
+			}
+
+			// Token: 0x0600848E RID: 33934 RVA: 0x002B6FAC File Offset: 0x002B51AC
+			public override string ToString()
+			{
+				if (!this.KnownDirection)
+				{
+					return string.Format(\uF1F8.\uE000(191178), this.CurrentPlayer.FullIdInfo, this.Item, this.\uE000(this.ToPlayer));
+				}
+				return string.Format(\uF1F8.\uE000(191111), new object[]
+				{
+					this.CurrentPlayer.FullIdInfo,
+					this.Item,
+					this.\uE000(this.FromPlayer),
+					this.\uE000(this.ToPlayer)
+				});
+			}
+
+			// Token: 0x0600848F RID: 33935 RVA: 0x002B7038 File Offset: 0x002B5238
+			[CompilerGenerated]
+			private string \uE000(Player player)
+			{
+				if (player == this.CurrentPlayer)
+				{
+					return \uF1F8.\uE000(190770);
+				}
+				if (!(player == null))
+				{
+					return \uF1F8.\uE000(190829) + player.FullIdInfo;
+				}
+				return \uF1F8.\uE000(190815);
+			}
+
+			// Token: 0x04007A32 RID: 31282
+			public readonly Item Item;
+
+			// Token: 0x04007A33 RID: 31283
+			public readonly Player CurrentPlayer;
+
+			// Token: 0x04007A34 RID: 31284
+			[CanBeNull]
+			public readonly Player FromPlayer;
+
+			// Token: 0x04007A35 RID: 31285
+			[CanBeNull]
+			public readonly Player ToPlayer;
+
+			// Token: 0x04007A36 RID: 31286
+			public readonly bool KnownDirection;
+		}
+
+		// Token: 0x0200147D RID: 5245
+		public sealed class \uE006 : Error
+		{
+			// Token: 0x06008490 RID: 33936 RVA: 0x002B7090 File Offset: 0x002B5290
+			public \uE006(Player player)
+			{
+				this.Player = player;
+			}
+
+			// Token: 0x06008491 RID: 33937 RVA: 0x002B70A0 File Offset: 0x002B52A0
+			public override string ToString()
+			{
+				return \uF1F8.\uE000(190773) + this.Player.FullIdInfo + \uF1F8.\uE000(190781);
+			}
+
+			// Token: 0x04007A37 RID: 31287
+			public readonly Player Player;
+		}
+
+		// Token: 0x0200147E RID: 5246
+		public sealed class \uE007 : Error
+		{
+			// Token: 0x06008492 RID: 33938 RVA: 0x002B70C8 File Offset: 0x002B52C8
+			public \uE007(Player player)
+			{
+				this.Player = player;
+			}
+
+			// Token: 0x06008493 RID: 33939 RVA: 0x002B70D8 File Offset: 0x002B52D8
+			public override string ToString()
+			{
+				return \uF1F8.\uE000(190773) + this.Player.FullIdInfo + \uF1F8.\uE000(190729);
+			}
+
+			// Token: 0x04007A38 RID: 31288
+			public readonly Player Player;
+		}
+
+		// Token: 0x0200147F RID: 5247
+		public class \uE008 : Error
+		{
+			// Token: 0x06008494 RID: 33940 RVA: 0x002B7100 File Offset: 0x002B5300
+			public \uE008(IItemOwner itemOwner, Item item, Vector3 ownerPosition, Vector3 itemPosition)
+			{
+				this.ItemOwner = itemOwner;
+				this.Item = item;
+				this.OwnerPosition = ownerPosition;
+				this.ItemPosition = itemPosition;
+			}
+
+			// Token: 0x06008495 RID: 33941 RVA: 0x002B7134 File Offset: 0x002B5334
+			public override string ToString()
+			{
+				return string.Format(\uF1F8.\uE000(190930), new object[]
+				{
+					this.Item,
+					this.ItemPosition,
+					this.ItemOwner,
+					this.OwnerPosition
+				});
+			}
+
+			// Token: 0x04007A39 RID: 31289
+			public readonly IItemOwner ItemOwner;
+
+			// Token: 0x04007A3A RID: 31290
+			public readonly Item Item;
+
+			// Token: 0x04007A3B RID: 31291
+			public readonly Vector3 OwnerPosition;
+
+			// Token: 0x04007A3C RID: 31292
+			public readonly Vector3 ItemPosition;
+		}
+
+		// Token: 0x02001480 RID: 5248
+		public class \uE009 : Error
+		{
+			// Token: 0x06008496 RID: 33942 RVA: 0x002B7184 File Offset: 0x002B5384
+			public \uE009(IItemOwner itemOwner, Item item, Vector3 ownerPosition, Vector3 itemPosition, string colliderName)
+			{
+				this.ItemOwner = itemOwner;
+				this.Item = item;
+				this.OwnerPosition = ownerPosition;
+				this.ItemPosition = itemPosition;
+				this.ColliderName = colliderName;
+			}
+
+			// Token: 0x06008497 RID: 33943 RVA: 0x002B71C0 File Offset: 0x002B53C0
+			public override string ToString()
+			{
+				return string.Format(\uF1F8.\uE000(190911), new object[]
+				{
+					this.Item,
+					this.ItemPosition,
+					this.ItemOwner,
+					this.OwnerPosition,
+					this.ColliderName
+				});
+			}
+
+			// Token: 0x04007A3D RID: 31293
+			public readonly IItemOwner ItemOwner;
+
+			// Token: 0x04007A3E RID: 31294
+			public readonly Item Item;
+
+			// Token: 0x04007A3F RID: 31295
+			public readonly Vector3 OwnerPosition;
+
+			// Token: 0x04007A40 RID: 31296
+			public readonly Vector3 ItemPosition;
+
+			// Token: 0x04007A41 RID: 31297
+			public string ColliderName;
+		}
+
+		// Token: 0x02001481 RID: 5249
+		public class \uE00A : Error
+		{
+			// Token: 0x06008498 RID: 33944 RVA: 0x002B721C File Offset: 0x002B541C
+			public \uE00A(IItemOwner itemOwner, Item item, Vector3 ownerPosition, Vector3 itemPosition)
+			{
+				this.ItemOwner = itemOwner;
+				this.Item = item;
+				this.OwnerPosition = ownerPosition;
+				this.ItemPosition = itemPosition;
+			}
+
+			// Token: 0x06008499 RID: 33945 RVA: 0x002B7250 File Offset: 0x002B5450
+			public override string ToString()
+			{
+				return string.Format(\uF1F8.\uE000(190860), new object[]
+				{
+					this.Item,
+					this.ItemPosition,
+					this.ItemOwner,
+					this.OwnerPosition
+				});
+			}
+
+			// Token: 0x04007A42 RID: 31298
+			public readonly IItemOwner ItemOwner;
+
+			// Token: 0x04007A43 RID: 31299
+			public readonly Item Item;
+
+			// Token: 0x04007A44 RID: 31300
+			public readonly Vector3 OwnerPosition;
+
+			// Token: 0x04007A45 RID: 31301
+			public readonly Vector3 ItemPosition;
+		}
+
+		// Token: 0x02001482 RID: 5250
+		public class \uE00B : Error
+		{
+			// Token: 0x0600849A RID: 33946 RVA: 0x002B72A0 File Offset: 0x002B54A0
+			public \uE00B(Item item)
+			{
+				this.Item = item;
+			}
+
+			// Token: 0x0600849B RID: 33947 RVA: 0x002B72B0 File Offset: 0x002B54B0
+			public override string ToString()
+			{
+				string str = \uF1F8.\uE000(190545);
+				Item item = this.Item;
+				return str + ((item != null) ? item.ToString() : null) + \uF1F8.\uE000(190559);
+			}
+
+			// Token: 0x04007A46 RID: 31302
+			public readonly Item Item;
+		}
+
+		// Token: 0x02001484 RID: 5252
+		[CompilerGenerated]
+		private sealed class \uE00C
+		{
+			// Token: 0x060084A8 RID: 33960 RVA: 0x002B7358 File Offset: 0x002B5558
+			internal bool \uE000(LootItem x)
+			{
+				return x.ItemId.Equals(this.id);
+			}
+
+			// Token: 0x04007A51 RID: 31313
+			public string id;
+		}
+
+		// Token: 0x02001485 RID: 5253
+		[CompilerGenerated]
+		private sealed class \uE00D
+		{
+			// Token: 0x060084AA RID: 33962 RVA: 0x002B7374 File Offset: 0x002B5574
+			internal bool \uE000(\uE3A2 x)
+			{
+				return x.Id == this.lootId;
+			}
+
+			// Token: 0x04007A52 RID: 31314
+			public string lootId;
+		}
+
+		// Token: 0x02001486 RID: 5254
+		[CompilerGenerated]
+		private sealed class \uE00E
+		{
+			// Token: 0x060084AC RID: 33964 RVA: 0x002B7390 File Offset: 0x002B5590
+			internal void \uE000(LootableContainer container)
+			{
+				if (!container.GameObjectsToDestroy.IsNullOrEmpty<GameObject>())
+				{
+					using (List<GameObject>.Enumerator enumerator = container.GameObjectsToDestroy.GetEnumerator())
+					{
+						while (enumerator.MoveNext())
+						{
+							GameObject gameObject = enumerator.Current;
+							this.<>4__this.\uE027.Add(gameObject);
+							gameObject.SetActive(false);
+						}
+						return;
+					}
+				}
+				Transform parent = container.transform.parent;
+				this.<>4__this.\uE027.Add(parent.gameObject);
+				parent.gameObject.SetActive(false);
+			}
+
+			// Token: 0x060084AD RID: 33965 RVA: 0x002B7440 File Offset: 0x002B5640
+			internal bool \uE001(LootableContainer x)
+			{
+				return x.Id.Equals(this.id);
+			}
+
+			// Token: 0x04007A53 RID: 31315
+			public GameWorld <>4__this;
+
+			// Token: 0x04007A54 RID: 31316
+			public string id;
+		}
+
+		// Token: 0x02001487 RID: 5255
+		[CompilerGenerated]
+		private sealed class \uE00F
+		{
+			// Token: 0x060084AF RID: 33967 RVA: 0x002B745C File Offset: 0x002B565C
+			internal bool \uE000(\uE654 lootItem)
+			{
+				return lootItem.Id != this.staticLootSpawn.Id;
+			}
+
+			// Token: 0x04007A55 RID: 31317
+			public \uE3A2 staticLootSpawn;
+		}
+
+		// Token: 0x02001488 RID: 5256
+		[CompilerGenerated]
+		private sealed class \uE010
+		{
+			// Token: 0x060084B1 RID: 33969 RVA: 0x002B747C File Offset: 0x002B567C
+			internal bool \uE000(StationaryWeapon x)
+			{
+				return x.Id == this.id;
+			}
+
+			// Token: 0x04007A56 RID: 31318
+			public string id;
+		}
+
+		// Token: 0x02001489 RID: 5257
+		[CompilerGenerated]
+		private sealed class \uE011
+		{
+			// Token: 0x060084B3 RID: 33971 RVA: 0x002B7498 File Offset: 0x002B5698
+			internal bool \uE000(StationaryWeapon x)
+			{
+				return x.Item.Id == this.itemId;
+			}
+
+			// Token: 0x04007A57 RID: 31319
+			public string itemId;
+		}
+
+		// Token: 0x0200148A RID: 5258
+		[CompilerGenerated]
+		private sealed class \uE012
+		{
+			// Token: 0x060084B5 RID: 33973 RVA: 0x002B74B8 File Offset: 0x002B56B8
+			internal bool \uE000(KeyValuePair<IItemOwner, GameWorld.\uE000> x)
+			{
+				return x.Key.ID == this.ownerId;
+			}
+
+			// Token: 0x04007A58 RID: 31320
+			public string ownerId;
+		}
+	}
+}

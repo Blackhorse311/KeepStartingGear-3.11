@@ -1,0 +1,122 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!--
+      Target .NET Framework 4.7.1 to match SPT 3.11.x BepInEx requirements
+    -->
+    <TargetFramework>net471</TargetFramework>
+
+    <!--
+      Mod identification and versioning
+    -->
+    <Version>1.1.0</Version>
+    <Authors>Blackhorse311</Authors>
+    <Company>Blackhorse311</Company>
+    <Product>Keep Starting Gear (SPT 3.11.4)</Product>
+    <Description>A BepInEx mod for SPT 3.11.x that allows players to save and restore their inventory after unsuccessful raids</Description>
+
+    <!--
+      Build configuration
+    -->
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>Blackhorse311.KeepStartingGear</RootNamespace>
+    <AssemblyName>Blackhorse311.KeepStartingGear</AssemblyName>
+
+    <!--
+      Output configuration
+    -->
+    <OutputPath>..\..\bin\client\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+
+    <!--
+      Documentation generation
+    -->
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    Reference paths - adjust SPT_311_PATH to your SPT 3.11.4 installation
+    Default assumes SPT is installed at a sibling location
+  -->
+  <PropertyGroup>
+    <SptPath Condition="'$(SptPath)' == ''">$(SPT_311_PATH)</SptPath>
+    <SptPath Condition="'$(SptPath)' == ''">..\..\SPT 3.11.4</SptPath>
+    <BepInExPath>$(SptPath)\BepInEx</BepInExPath>
+    <ManagedPath>$(SptPath)\EscapeFromTarkov_Data\Managed</ManagedPath>
+    <SptPluginsPath>$(SptPath)\BepInEx\plugins\spt</SptPluginsPath>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      BepInEx Core References
+    -->
+    <Reference Include="BepInEx">
+      <HintPath>$(BepInExPath)\core\BepInEx.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExPath)\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!--
+      SPT References
+    -->
+    <Reference Include="spt-reflection">
+      <HintPath>$(SptPluginsPath)\spt-reflection.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="spt-common">
+      <HintPath>$(SptPluginsPath)\spt-common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!--
+      EFT Game References
+    -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(ManagedPath)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="Comfort">
+      <HintPath>$(ManagedPath)\Comfort.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!--
+      Unity Engine References
+    -->
+    <Reference Include="UnityEngine">
+      <HintPath>$(ManagedPath)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(ManagedPath)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(ManagedPath)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(ManagedPath)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <!--
+      Newtonsoft.Json for JSON serialization
+    -->
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(ManagedPath)\Newtonsoft.Json.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

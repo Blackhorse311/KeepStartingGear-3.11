@@ -1,0 +1,1206 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+using Comfort.Common;
+using CommonAssets.Scripts.Game;
+using EFT.AssetsManager;
+using EFT.Bots;
+using EFT.EnvironmentEffect;
+using EFT.Game.Spawning;
+using EFT.Interactive;
+using EFT.Interactive.SecretExfiltrations;
+using EFT.InventoryLogic;
+using EFT.UI;
+using EFT.UI.Screens;
+using EFT.Utilities;
+using EFT.Weather;
+using JsonType;
+using Newtonsoft.Json;
+using UnityEngine;
+using UnityEngine.LowLevel;
+
+namespace EFT
+{
+	// Token: 0x02001BB5 RID: 7093
+	internal abstract class BaseLocalGame<TPlayerOwner> : AbstractGame, EndByExitTrigerScenario.\uE001, \uE76F, EndByTimerScenario.\uE000 where TPlayerOwner : EftGamePlayerOwner
+	{
+		// Token: 0x17001883 RID: 6275
+		// (get) Token: 0x0600B27A RID: 45690 RVA: 0x0037CF70 File Offset: 0x0037B170
+		// (set) Token: 0x0600B27B RID: 45691 RVA: 0x0037CF78 File Offset: 0x0037B178
+		public GameDateTime GameDateTime { get; private set; }
+
+		// Token: 0x17001884 RID: 6276
+		// (get) Token: 0x0600B27C RID: 45692 RVA: 0x0037CF84 File Offset: 0x0037B184
+		// (set) Token: 0x0600B27D RID: 45693 RVA: 0x0037CF8C File Offset: 0x0037B18C
+		private protected GameWorld \uE000 { protected get; private set; }
+
+		// Token: 0x17001885 RID: 6277
+		// (get) Token: 0x0600B27E RID: 45694 RVA: 0x0037CF98 File Offset: 0x0037B198
+		// (set) Token: 0x0600B27F RID: 45695 RVA: 0x0037CFA0 File Offset: 0x0037B1A0
+		private protected LocalPlayer \uE001 { protected get; private set; }
+
+		// Token: 0x0600B280 RID: 45696 RVA: 0x0037CFAC File Offset: 0x0037B1AC
+		protected static \uE0B8 \uE000<\uE0B8>(\uE9C4 inputTree, Profile profile, GameWorld gameWorld, GameDateTime backendDateTime, \uF116 insurance, MenuUI menuUI, GameUI gameUI, \uE664.Location location, TimeAndWeatherSettings timeAndWeather, WavesSettings wavesSettings, EDateTime dateTime, Callback<ExitStatus, TimeSpan, \uEB21> callback, float fixedDeltaTime, EUpdateQueue updateQueue, \uE94D backEndSession, TimeSpan? sessionTime, \uEB23 metricsEvents, \uEB24 metricsCollector, LocalRaidSettings raidSettings) where \uE0B8 : BaseLocalGame<TPlayerOwner>
+		{
+			BaseLocalGame<TPlayerOwner>.\uE001<\uE0B8> uE = new BaseLocalGame<TPlayerOwner>.\uE001<\uE0B8>();
+			uE.inputTree = inputTree;
+			uE.insurance = insurance;
+			uE.backEndSession = backEndSession;
+			uE.gameUI = gameUI;
+			uE.location = location;
+			float num = 1.5f;
+			foreach (WildSpawnWave wildSpawnWave in uE.location.waves)
+			{
+				wildSpawnWave.slots_min = (int)((float)wildSpawnWave.slots_min * num);
+				wildSpawnWave.slots_max = (int)((float)wildSpawnWave.slots_max * num);
+			}
+			uE.game = AbstractGame.Create<\uE0B8>(updateQueue, sessionTime, \uF1F8.\uE000(233500));
+			uE.game.\uE000 = gameWorld;
+			uE.game.\uE00A = \uE2F9.Config.UseSpiritPlayer;
+			\uE2F9.Config.UseSpiritPlayer = false;
+			uE.game.\uE002 = menuUI;
+			uE.game.\uE011 = uE.backEndSession;
+			uE.game.\uE010 = uE.gameUI;
+			uE.game.\uE012 = callback;
+			uE.game.\uE003 = profile;
+			uE.game.\uE004 = uE.location;
+			uE.game.\uE01E = dateTime;
+			uE.game.FixedDeltaTime = fixedDeltaTime;
+			BaseLocalGame<TPlayerOwner>.\uE001<\uE0B8>(uE.location, wavesSettings);
+			if (!Singleton<\uE34D>.Instantiated)
+			{
+				Singleton<\uE34D>.Create(new \uE34D());
+			}
+			uE.game.\uE013 = EndByExitTrigerScenario.Create(uE.game);
+			uE.game.\uE014 = EndByTimerScenario.\uE000(uE.game);
+			uE.game.\uE00F = backendDateTime;
+			uE.game.\uE01A = metricsEvents;
+			uE.game.\uE019 = metricsCollector;
+			uE.game.\uE01B = raidSettings;
+			uE.game.\uE002(timeAndWeather);
+			uE.game.\uE016 = new Func<LocalPlayer, TPlayerOwner>(uE.\uE000);
+			WorldInteractiveObject.InteractionShouldBeConfirmed = false;
+			uE.game.\uE02C();
+			return uE.game;
+		}
+
+		// Token: 0x0600B281 RID: 45697 RVA: 0x0037D228 File Offset: 0x0037B428
+		private static void \uE001<\uE0B8>(\uE664.Location location, WavesSettings wavesSettings) where \uE0B8 : BaseLocalGame<TPlayerOwner>
+		{
+			location.OldSpawn = location.OfflineOldSpawn;
+			location.NewSpawn = location.OfflineNewSpawn;
+			float num = 1f;
+			switch (wavesSettings.BotAmount)
+			{
+			case EBotAmount.NoBots:
+			case EBotAmount.Low:
+				num = ((Singleton<\uE714>.Instance != null) ? Singleton<\uE714>.Instance.WAVE_COEF_LOW : \uE2E3.Core.WAVE_COEF_LOW);
+				break;
+			case EBotAmount.Medium:
+				num = ((Singleton<\uE714>.Instance != null) ? Singleton<\uE714>.Instance.WAVE_COEF_MID : \uE2E3.Core.WAVE_COEF_MID);
+				break;
+			case EBotAmount.High:
+				num = ((Singleton<\uE714>.Instance != null) ? Singleton<\uE714>.Instance.WAVE_COEF_HIGH : \uE2E3.Core.WAVE_COEF_HIGH);
+				break;
+			case EBotAmount.Horde:
+				num = ((Singleton<\uE714>.Instance != null) ? Singleton<\uE714>.Instance.WAVE_COEF_HORDE : \uE2E3.Core.WAVE_COEF_HORDE);
+				break;
+			}
+			location.BotMax = (int)((float)location.BotMax * num);
+		}
+
+		// Token: 0x0600B282 RID: 45698 RVA: 0x0037D334 File Offset: 0x0037B534
+		private void Update()
+		{
+			Action uE = this.\uE028;
+			if (uE == null)
+			{
+				return;
+			}
+			uE();
+		}
+
+		// Token: 0x0600B283 RID: 45699 RVA: 0x0037D348 File Offset: 0x0037B548
+		protected virtual void \uE02C()
+		{
+		}
+
+		// Token: 0x0600B284 RID: 45700 RVA: 0x0037D34C File Offset: 0x0037B54C
+		private void \uE002(TimeAndWeatherSettings timeAndWeather)
+		{
+			System.Random random = new System.Random();
+			if (timeAndWeather.IsRandomTime)
+			{
+				this.\uE01D = new DateTime(2016, 4, 30, random.Next(1, 24), random.Next(1, 59), 0, DateTimeKind.Utc);
+			}
+			else if (!this.\uE023.TryGetValue(this.\uE004.Id, out this.\uE01D))
+			{
+				this.\uE01D = ((this.\uE01E == EDateTime.CURR) ? this.\uE00F.Calculate() : this.\uE00F.Calculate().AddHours(12.0));
+			}
+			this.GameDateTime = new GameDateTime(this.\uE00F.\uE001, this.\uE01D, this.\uE00F.TimeFactor, this.\uE00F.\uE000);
+			this.\uE000.GameDateTime = this.GameDateTime;
+			if (WeatherController.Instance != null)
+			{
+				TOD_Sky.Instance.Components.Time.GameDateTime = this.GameDateTime;
+				\uEAF8[] randomTestWeatherNodes = \uEAF8.GetRandomTestWeatherNodes(600, 12);
+				if (!timeAndWeather.IsRandomWeather)
+				{
+					long time = randomTestWeatherNodes[0].Time;
+					randomTestWeatherNodes[0] = this.\uE011.Weather;
+					randomTestWeatherNodes[0].Time = time;
+				}
+				WeatherController.Instance.\uE000(randomTestWeatherNodes);
+			}
+		}
+
+		// Token: 0x17001886 RID: 6278
+		// (get) Token: 0x0600B285 RID: 45701 RVA: 0x0037D4C0 File Offset: 0x0037B6C0
+		public TPlayerOwner PlayerOwner
+		{
+			get
+			{
+				return this.\uE017;
+			}
+		}
+
+		// Token: 0x17001887 RID: 6279
+		// (get) Token: 0x0600B286 RID: 45702 RVA: 0x0037D4C8 File Offset: 0x0037B6C8
+		// (set) Token: 0x0600B287 RID: 45703 RVA: 0x0037D4D0 File Offset: 0x0037B6D0
+		private protected MenuUI \uE002 { protected get; private set; }
+
+		// Token: 0x17001888 RID: 6280
+		// (get) Token: 0x0600B288 RID: 45704 RVA: 0x0037D4DC File Offset: 0x0037B6DC
+		// (set) Token: 0x0600B289 RID: 45705 RVA: 0x0037D4E4 File Offset: 0x0037B6E4
+		private protected Profile \uE003 { protected get; private set; }
+
+		// Token: 0x17001889 RID: 6281
+		// (get) Token: 0x0600B28A RID: 45706 RVA: 0x0037D4F0 File Offset: 0x0037B6F0
+		// (set) Token: 0x0600B28B RID: 45707 RVA: 0x0037D4F8 File Offset: 0x0037B6F8
+		private protected \uE664.Location \uE004 { protected get; private set; }
+
+		// Token: 0x1700188A RID: 6282
+		// (get) Token: 0x0600B28C RID: 45708 RVA: 0x0037D504 File Offset: 0x0037B704
+		public override string LocationObjectId
+		{
+			get
+			{
+				return this.\uE004._Id;
+			}
+		}
+
+		// Token: 0x1700188B RID: 6283
+		// (get) Token: 0x0600B28D RID: 45709 RVA: 0x0037D514 File Offset: 0x0037B714
+		protected override GameUI GameUi
+		{
+			get
+			{
+				return this.\uE010;
+			}
+		}
+
+		// Token: 0x1700188C RID: 6284
+		// (get) Token: 0x0600B28E RID: 45710 RVA: 0x0037D51C File Offset: 0x0037B71C
+		protected override string ProfileId
+		{
+			get
+			{
+				return this.\uE003.Id;
+			}
+		}
+
+		// Token: 0x0600B28F RID: 45711 RVA: 0x0037D52C File Offset: 0x0037B72C
+		internal Task \uE003(BotControllerSettings botsSettings, string backendUrl, InventoryController inventoryController)
+		{
+			BaseLocalGame<TPlayerOwner>.\uE00A uE00A;
+			uE00A.<>t__builder = AsyncTaskMethodBuilder.Create();
+			uE00A.<>4__this = this;
+			uE00A.botsSettings = botsSettings;
+			uE00A.<>1__state = -1;
+			uE00A.<>t__builder.Start<BaseLocalGame<TPlayerOwner>.\uE00A>(ref uE00A);
+			return uE00A.<>t__builder.Task;
+		}
+
+		// Token: 0x0600B290 RID: 45712 RVA: 0x0037D584 File Offset: 0x0037B784
+		private void \uE004(Profile profile, string keyId)
+		{
+			BaseLocalGame<TPlayerOwner>.\uE004 uE = new BaseLocalGame<TPlayerOwner>.\uE004();
+			uE.keyId = keyId;
+			if (string.IsNullOrEmpty(uE.keyId))
+			{
+				return;
+			}
+			Item item = null;
+			Item item2 = Enumerable.FirstOrDefault<Item>(profile.Inventory.GetPlayerItems(EPlayerItems.Equipment), new Func<Item, bool>(uE.\uE000));
+			if (item2 != null)
+			{
+				KeyComponent itemComponent = item2.GetItemComponent<KeyComponent>();
+				if (itemComponent != null)
+				{
+					if (itemComponent.Template.MaximumNumberOfUsage != 0)
+					{
+						KeyComponent keyComponent = itemComponent;
+						int num = keyComponent.NumberOfUsages + 1;
+						keyComponent.NumberOfUsages = num;
+						if (num == itemComponent.Template.MaximumNumberOfUsage)
+						{
+							item = item2;
+						}
+					}
+				}
+				else
+				{
+					item = item2;
+				}
+			}
+			if (item != null)
+			{
+				\uEDC3 uEDC = item.Parent.Container as \uEDC3;
+				if (uEDC != null)
+				{
+					\uF190<\uEF1B> uF = uEDC.Remove(item, false);
+					if (uF.Failed)
+					{
+						Debug.LogError(uF.Error);
+					}
+				}
+			}
+		}
+
+		// Token: 0x0600B291 RID: 45713 RVA: 0x0037D66C File Offset: 0x0037B86C
+		protected virtual Task \uE02D(BotControllerSettings controllerSettings, \uEFF5 spawnSystem)
+		{
+			BaseLocalGame<TPlayerOwner>.\uE008 uE;
+			uE.<>t__builder = AsyncTaskMethodBuilder.Create();
+			uE.<>1__state = -1;
+			uE.<>t__builder.Start<BaseLocalGame<TPlayerOwner>.\uE008>(ref uE);
+			return uE.<>t__builder.Task;
+		}
+
+		// Token: 0x0600B292 RID: 45714 RVA: 0x0037D6B0 File Offset: 0x0037B8B0
+		private Task \uE005()
+		{
+			\uE3FD.RunHeapPreAllocation();
+			\uE3FD.Collect(true);
+			if (\uE3FD.Settings.OverrideRamCleanerSettings ? \uE3FD.Settings.RamCleanerEnabled : Singleton<\uE9A4>.Instance.Game.Settings.AutoEmptyWorkingSet)
+			{
+				\uE3FD.EmptyWorkingSet();
+			}
+			\uE3FD.GCEnabled = false;
+			Process.GetCurrentProcess().PriorityClass = 128;
+			\uF01E.Instance.IsActive = true;
+			TaskCompletionSource taskCompletionSource = new TaskCompletionSource();
+			base.StartCoroutine(this.\uE031(new Action(taskCompletionSource.Complete)));
+			return taskCompletionSource.Task;
+		}
+
+		// Token: 0x0600B293 RID: 45715
+		protected abstract IEnumerator \uE02E();
+
+		// Token: 0x0600B294 RID: 45716 RVA: 0x0037D760 File Offset: 0x0037B960
+		protected virtual Task<LocalPlayer> \uE02F(GameWorld gameWorld, int playerId, Vector3 position, Quaternion rotation, string layerName, string prefix, EPointOfView pointOfView, Profile profile, bool aiControl, EUpdateQueue updateQueue, Player.EUpdateMode armsUpdateMode, Player.EUpdateMode bodyUpdateMode, CharacterControllerSpawner.Mode characterControllerMode, Func<float> getSensitivity, Func<float> getAimingSensitivity, IStatisticsManager statisticsManager, \uE94D session, ELocalMode localMode)
+		{
+			BaseLocalGame<TPlayerOwner>.\uE009 uE;
+			uE.<>t__builder = AsyncTaskMethodBuilder<LocalPlayer>.Create();
+			uE.<>4__this = this;
+			uE.gameWorld = gameWorld;
+			uE.playerId = playerId;
+			uE.position = position;
+			uE.rotation = rotation;
+			uE.profile = profile;
+			uE.armsUpdateMode = armsUpdateMode;
+			uE.session = session;
+			uE.localMode = localMode;
+			uE.<>1__state = -1;
+			uE.<>t__builder.Start<BaseLocalGame<TPlayerOwner>.\uE009>(ref uE);
+			return uE.<>t__builder.Task;
+		}
+
+		// Token: 0x0600B295 RID: 45717 RVA: 0x0037D800 File Offset: 0x0037BA00
+		private void \uE006(string backendUrl, string locationId, int variantId)
+		{
+			\uE308 cache = this.\uE011.Cache;
+			if (cache == null)
+			{
+				return;
+			}
+			string text = backendUrl + string.Format(\uF1F8.\uE000(233473), locationId, variantId);
+			if (cache.Exists(text))
+			{
+				return;
+			}
+			string path = \uF1F8.\uE000(233692) + this.\uE004.Id + variantId.ToString();
+			\uE664.\uE000 uE;
+			try
+			{
+				uE = \uE3F2.Load<TextAsset>(path).text.ParseJsonTo(Array.Empty<JsonConverter>());
+				if (uE.BackendUrl != backendUrl)
+				{
+					return;
+				}
+			}
+			catch (Exception exception)
+			{
+				Debug.LogException(exception);
+				return;
+			}
+			\uE30C obj = new \uE30C
+			{
+				data = uE.Location,
+				crc = uE.crc
+			};
+			try
+			{
+				string data = obj.ToPrettyJson(Array.Empty<JsonConverter>());
+				cache.Save(text, data);
+				Debug.Log(string.Format(\uF1F8.\uE000(233675), new object[]
+				{
+					locationId,
+					variantId,
+					uE.crc,
+					text
+				}));
+			}
+			catch (Exception exception2)
+			{
+				Debug.LogException(exception2);
+			}
+		}
+
+		// Token: 0x0600B296 RID: 45718 RVA: 0x0037D944 File Offset: 0x0037BB44
+		private Task<\uE664.Location> \uE007(string backendUrl)
+		{
+			int num = UnityEngine.Random.Range(1, 6);
+			return BaseLocalGame<TPlayerOwner>.\uE012(\uE3F2.Load<TextAsset>(\uF1F8.\uE000(233692) + this.\uE004.Id + num.ToString()).text.ParseJsonTo(Array.Empty<JsonConverter>()).Location);
+		}
+
+		// Token: 0x0600B297 RID: 45719 RVA: 0x0037D998 File Offset: 0x0037BB98
+		private void \uE008(ExfiltrationPoint point, EExfiltrationStatus prevStatus)
+		{
+			base.UpdateExfiltrationUi(point, Enumerable.Any<Player>(point.Entered, new Func<Player, bool>(this.\uE013)), false);
+		}
+
+		// Token: 0x0600B298 RID: 45720 RVA: 0x0037D9BC File Offset: 0x0037BBBC
+		protected virtual void \uE030()
+		{
+			ReconnectionScreen.\uE000 uE = new ReconnectionScreen.\uE000(this.\uE003, this.\uE004, ESideType.Pmc, true, false, this.\uE011);
+			uE.OnLeave += this.\uE014;
+			uE.ShowScreen(EScreenState.Queued);
+		}
+
+		// Token: 0x0600B299 RID: 45721 RVA: 0x0037D9F0 File Offset: 0x0037BBF0
+		protected virtual IEnumerator \uE031(Action runCallback)
+		{
+			int num;
+			for (;;)
+			{
+				int num2;
+				num = num2;
+				if (num != 0)
+				{
+					break;
+				}
+				yield return base.StartCoroutine(this.\uE02E());
+			}
+			if (num != 1)
+			{
+				yield break;
+			}
+			using (\uE073.StartWithToken(\uF1F8.\uE000(237529)))
+			{
+				this.\uE031();
+			}
+			if (runCallback != null)
+			{
+				runCallback();
+			}
+			if (this.\uE01A != null)
+			{
+				this.\uE01A.SetGameRunned();
+				this.\uE01A.SetGameSpawn();
+				this.\uE01A.SetGameSpawned();
+				this.\uE01A.SetGameStarting();
+				this.\uE01A.SetGameStarted();
+			}
+			\uEB24 uE2 = this.\uE019;
+			if (uE2 != null)
+			{
+				uE2.Start();
+			}
+			yield break;
+		}
+
+		// Token: 0x140001FB RID: 507
+		// (add) Token: 0x0600B29A RID: 45722 RVA: 0x0037DA08 File Offset: 0x0037BC08
+		// (remove) Token: 0x0600B29B RID: 45723 RVA: 0x0037DA4C File Offset: 0x0037BC4C
+		public event Action UpdateByUnity
+		{
+			[CompilerGenerated]
+			add
+			{
+				Action action = this.\uE028;
+				Action action2;
+				do
+				{
+					action2 = action;
+					Action value2 = (Action)Delegate.Combine(action2, value);
+					action = Interlocked.CompareExchange<Action>(ref this.\uE028, value2, action2);
+				}
+				while (action != action2);
+			}
+			[CompilerGenerated]
+			remove
+			{
+				Action action = this.\uE028;
+				Action action2;
+				do
+				{
+					action2 = action;
+					Action value2 = (Action)Delegate.Remove(action2, value);
+					action = Interlocked.CompareExchange<Action>(ref this.\uE028, value2, action2);
+				}
+				while (action != action2);
+			}
+		}
+
+		// Token: 0x1700188D RID: 6285
+		// (get) Token: 0x0600B29C RID: 45724 RVA: 0x0037DA90 File Offset: 0x0037BC90
+		public List<Player> AllPlayers
+		{
+			get
+			{
+				if (this.\uE017 != null && this.\uE017.Player != null)
+				{
+					return new List<Player>
+					{
+						this.\uE017.Player
+					};
+				}
+				return new List<Player>();
+			}
+		}
+
+		// Token: 0x0600B29D RID: 45725 RVA: 0x0037DAEC File Offset: 0x0037BCEC
+		protected virtual void \uE031()
+		{
+			base.GameTimer.Start(null, null);
+			this.Spawn();
+			\uE8F9[] skills = this.\uE003.Skills.Skills;
+			for (int i = 0; i < skills.Length; i++)
+			{
+				skills[i].SetPointsEarnedInSession(0f, false);
+			}
+			if (this.\uE01F != null)
+			{
+				this.\uE003.Info.EntryPoint = this.\uE01F;
+				\uE693.Instance.InitAllExfiltrationPoints(this.\uE004._Id, this.\uE004.exits, this.\uE004.SecretExits, false, this.\uE004.DisabledScavExits, true);
+				\uE693.Instance.InitSecretExfils(this.\uE017.Player);
+				ExfiltrationPoint[] array = \uE693.Instance.EligiblePoints(this.\uE003);
+				SecretExfiltrationPoint[] array2 = \uE693.Instance.SecretEligiblePoints();
+				this.\uE010.TimerPanel.SetTime(\uE6D7.UtcNow, this.\uE003.Info.Side, (float)base.GameTimer.SessionSeconds(), array, array2);
+				foreach (ExfiltrationPoint exfiltrationPoint in array)
+				{
+					exfiltrationPoint.OnStatusChanged += this.\uE008;
+					base.UpdateExfiltrationUi(exfiltrationPoint, false, true);
+				}
+				foreach (SecretExfiltrationPoint secretExfiltrationPoint in array2)
+				{
+					secretExfiltrationPoint.OnStatusChanged += this.\uE008;
+					secretExfiltrationPoint.OnStatusChanged += base.ShowNewSecretExit;
+					base.UpdateExfiltrationUi(secretExfiltrationPoint, false, true);
+				}
+				\uE78E uE78E;
+				if (\uE791.Exist<\uE78E>(out uE78E))
+				{
+					uE78E.EnablePoints(true);
+					uE78E.UpdateTimers();
+					uE78E.HandleExits();
+				}
+			}
+			this.\uE013.Run();
+			this.\uE00E = \uE6D7.Now;
+			base.Status = GameStatus.Started;
+			if (Singleton<IBotGame>.Instantiated)
+			{
+				Singleton<IBotGame>.Instance.BotsController.Bots.CheckActivation();
+			}
+			ConsoleScreen.ApplyStartCommands();
+		}
+
+		// Token: 0x0600B29E RID: 45726 RVA: 0x0037DD18 File Offset: 0x0037BF18
+		protected virtual void Spawn()
+		{
+			this.\uE001.HealthController.DiedEvent += this.\uE015;
+			this.\uE017.\uE044();
+		}
+
+		// Token: 0x0600B29F RID: 45727 RVA: 0x0037DD48 File Offset: 0x0037BF48
+		private void \uE009()
+		{
+			this.\uE010.BattleUiPanelDeath.Show(this.\uE003, ExitStatus.Killed, \uE6D7.Now - this.\uE00E);
+			this.Stop(this.\uE003.Id, ExitStatus.Killed, null, 5f);
+		}
+
+		// Token: 0x0600B2A0 RID: 45728 RVA: 0x0037DD94 File Offset: 0x0037BF94
+		private static bool \uE00A<\uE084>(ref PlayerLoopSystem system, PlayerLoopSystem replacement)
+		{
+			if (system.type == typeof(\uE084))
+			{
+				system = replacement;
+				return true;
+			}
+			if (system.subSystemList != null)
+			{
+				for (int i = 0; i < system.subSystemList.Length; i++)
+				{
+					if (BaseLocalGame<TPlayerOwner>.\uE00A<\uE084>(ref system.subSystemList[i], replacement))
+					{
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		// Token: 0x0600B2A1 RID: 45729 RVA: 0x0037DE0C File Offset: 0x0037C00C
+		private static void \uE00B()
+		{
+		}
+
+		// Token: 0x0600B2A2 RID: 45730 RVA: 0x0037DE10 File Offset: 0x0037C010
+		private Task \uE00C(\uE664.Location location)
+		{
+			BaseLocalGame<TPlayerOwner>.\uE00C uE00C;
+			uE00C.<>t__builder = AsyncTaskMethodBuilder.Create();
+			uE00C.<>4__this = this;
+			uE00C.location = location;
+			uE00C.<>1__state = -1;
+			uE00C.<>t__builder.Start<BaseLocalGame<TPlayerOwner>.\uE00C>(ref uE00C);
+			return uE00C.<>t__builder.Task;
+		}
+
+		// Token: 0x0600B2A3 RID: 45731 RVA: 0x0037DE68 File Offset: 0x0037C068
+		void EndByTimerScenario.\uE000.StopGame()
+		{
+			this.Stop(this.\uE003.Id, ExitStatus.MissingInAction, null, 0f);
+		}
+
+		// Token: 0x0600B2A4 RID: 45732 RVA: 0x0037DE84 File Offset: 0x0037C084
+		public void ItemPlaced(\uE8AA droppedItem, string profileId)
+		{
+		}
+
+		// Token: 0x0600B2A5 RID: 45733 RVA: 0x0037DE88 File Offset: 0x0037C088
+		public void BotDespawn(BotOwner botOwner)
+		{
+			Player getPlayer = botOwner.GetPlayer;
+			this.\uE024.BotDied(botOwner);
+			this.\uE024.DestroyInfo(getPlayer);
+			AssetPoolObject.ReturnToPool(botOwner.gameObject, true);
+		}
+
+		// Token: 0x0600B2A6 RID: 45734 RVA: 0x0037DEC8 File Offset: 0x0037C0C8
+		public void ItemRemoved(\uE8AA droppedItem)
+		{
+		}
+
+		// Token: 0x0600B2A7 RID: 45735 RVA: 0x0037DECC File Offset: 0x0037C0CC
+		void EndByExitTrigerScenario.\uE001.StopSession(string profileId, ExitStatus exitStatus, string exitName)
+		{
+			this.Stop(profileId, exitStatus, exitName, 0f);
+		}
+
+		// Token: 0x0600B2A8 RID: 45736 RVA: 0x0037DEDC File Offset: 0x0037C0DC
+		public virtual void Stop(string profileId, ExitStatus exitStatus, string exitName, float delay = 0f)
+		{
+			BaseLocalGame<TPlayerOwner>.\uE005 uE = new BaseLocalGame<TPlayerOwner>.\uE005();
+			uE.<>4__this = this;
+			uE.profileId = profileId;
+			uE.exitStatus = exitStatus;
+			uE.exitName = exitName;
+			uE.delay = delay;
+			if (uE.profileId != this.\uE003.Id || base.Status == GameStatus.Stopped || base.Status == GameStatus.Stopping)
+			{
+				return;
+			}
+			if (base.Status == GameStatus.Starting || base.Status == GameStatus.Started)
+			{
+				this.\uE014.\uE003 = GameStatus.SoftStopping;
+			}
+			base.Status = GameStatus.Stopping;
+			base.GameTimer.TryStop();
+			this.\uE013.Stop();
+			this.\uE010.TimerPanel.Close();
+			this.\uE024.StopGettingInfo();
+			this.\uE024.DestroyInfo(this.\uE017.Player);
+			if (EnvironmentManager.Instance != null)
+			{
+				EnvironmentManager.Instance.Stop();
+			}
+			MonoBehaviourSingleton<PreloaderUI>.Instance.StartBlackScreenShow(1f, 1f, new Action(uE.\uE000));
+			\uE2F9.Config.UseSpiritPlayer = this.\uE00A;
+		}
+
+		// Token: 0x0600B2A9 RID: 45737 RVA: 0x0037E01C File Offset: 0x0037C21C
+		private \uE648[] \uE00D()
+		{
+			GameWorld instance = Singleton<GameWorld>.Instance;
+			Item[] array = Enumerable.ToArray<Item>(Enumerable.Concat<Item>(Enumerable.Select<LootItem, Item>(Enumerable.OfType<LootItem>(instance.LootList), new Func<LootItem, Item>(BaseLocalGame<TPlayerOwner>.<>c.<>9.\uE009)), Enumerable.Select<LootableContainer, Item>(Enumerable.OfType<LootableContainer>(instance.LootList), new Func<LootableContainer, Item>(BaseLocalGame<TPlayerOwner>.<>c.<>9.\uE00A))));
+			Item item = Singleton<\uE79C>.Instance.CreateItem(\uF1F8.\uE000(233612), \uF1F8.\uE000(135402), null);
+			\uEEFC itemController = new \uEEFC(item, item.Name, item.Name, true, EOwnerType.Profile);
+			foreach (Corpse corpse in Enumerable.OfType<Corpse>(instance.LootList))
+			{
+				Slot[] slots = ((InventoryEquipment)corpse.ItemOwner.RootItem).Slots;
+				for (int i = 0; i < slots.Length; i++)
+				{
+					Item containedItem = slots[i].ContainedItem;
+					if (containedItem != null && !containedItem.Template.NotShownInSlot && \uEF02.Remove(containedItem, itemController, true).Failed)
+					{
+						\uEF02.RemoveWithoutRestrictions(containedItem, corpse.ItemOwner);
+					}
+				}
+			}
+			Item[] array2 = Enumerable.ToArray<Item>(Enumerable.OfType<\uEDBE>(array).GetAllItemsFromCollections());
+			\uE648[] array3 = Singleton<\uE79C>.Instance.TreeToFlatItems(Enumerable.Distinct<Item>(Enumerable.Concat<Item>(array, array2)));
+			HashSet<string> hashSet = new HashSet<string>(Enumerable.Select<\uE650, string>(this.\uE003.InsuredItems, new Func<\uE650, string>(BaseLocalGame<TPlayerOwner>.<>c.<>9.\uE00B)));
+			Dictionary<string, \uE648> dictionary = new Dictionary<string, \uE648>();
+			foreach (\uE648 uE in array3)
+			{
+				MongoID id = uE._id;
+				if (hashSet.Contains(id))
+				{
+					\uE648 uE2;
+					if (dictionary.TryGetValue(id, out uE2))
+					{
+						MongoID? parentId = uE2.parentId;
+						if (!string.IsNullOrEmpty((parentId != null) ? parentId.GetValueOrDefault() : null))
+						{
+							goto IL_238;
+						}
+					}
+					dictionary[id] = uE;
+				}
+				IL_238:;
+			}
+			return Enumerable.ToArray<\uE648>(dictionary.Values);
+		}
+
+		// Token: 0x0600B2AA RID: 45738 RVA: 0x0037E2A0 File Offset: 0x0037C4A0
+		private Dictionary<string, \uE648[]> \uE00E()
+		{
+			GameWorld instance = Singleton<GameWorld>.Instance;
+			Dictionary<string, \uE648[]> dictionary = new Dictionary<string, \uE648[]>();
+			\uEFC1 btrController = instance.BtrController;
+			if (((btrController != null) ? btrController.TransferItemsController.Stash : null) != null)
+			{
+				\uEF44 stash = btrController.TransferItemsController.Stash;
+				dictionary.Add(stash.Id + \uF1F8.\uE000(237434), Singleton<\uE79C>.Instance.TreeToFlatItems(new Item[]
+				{
+					stash
+				}));
+			}
+			\uE78E uE78E;
+			if (\uE791.Exist<\uE78E>(out uE78E))
+			{
+				bool flag;
+				if (uE78E == null)
+				{
+					flag = (null != null);
+				}
+				else
+				{
+					\uE78B transferItemsController = uE78E.TransferItemsController;
+					flag = (((transferItemsController != null) ? transferItemsController.Stash : null) != null);
+				}
+				if (flag)
+				{
+					\uEF44 stash2 = uE78E.TransferItemsController.Stash;
+					dictionary.Add(stash2.Id + \uF1F8.\uE000(237439), Singleton<\uE79C>.Instance.TreeToFlatItems(new Item[]
+					{
+						stash2
+					}));
+				}
+			}
+			return dictionary;
+		}
+
+		// Token: 0x0600B2AB RID: 45739 RVA: 0x0037E398 File Offset: 0x0037C598
+		private Task \uE00F(string profileId, ExitStatus exitStatus, string exitName, float delay)
+		{
+			BaseLocalGame<TPlayerOwner>.\uE007 uE;
+			uE.<>t__builder = AsyncTaskMethodBuilder.Create();
+			uE.<>4__this = this;
+			uE.exitStatus = exitStatus;
+			uE.exitName = exitName;
+			uE.delay = delay;
+			uE.<>1__state = -1;
+			uE.<>t__builder.Start<BaseLocalGame<TPlayerOwner>.\uE007>(ref uE);
+			return uE.<>t__builder.Task;
+		}
+
+		// Token: 0x0600B2AC RID: 45740 RVA: 0x0037E408 File Offset: 0x0037C608
+		protected virtual \uEB21 \uE032()
+		{
+			\uEB21 result;
+			using (\uE073.StartWithToken(\uF1F8.\uE000(237412)))
+			{
+				this.\uE019.Stop();
+				\uEB21 uEB = new \uEB21();
+				\uEB04 metrics = this.\uE019.Metrics;
+				if (metrics != null)
+				{
+					uEB.sid = this.\uE01B.serverId;
+					uEB.HardwareDescription = \uE91E.\uE001();
+					uEB.Location = this.\uE01B.selectedLocation.Name;
+					uEB.Metrics = metrics;
+					uEB.ClientEvents = this.\uE01A;
+					uEB.mode = ((this.\uE01B.mode == ELocalMode.PVE_OFFLINE) ? EClientMetrics.OfflinePVE : EClientMetrics.Training);
+					if (Singleton<\uE9A4>.Instantiated)
+					{
+						\uE9A4 instance = Singleton<\uE9A4>.Instance;
+						uEB.Settings = instance.Graphics.Settings.Clone();
+						uEB.SharedSettings = new \uEB20(instance.Game);
+					}
+				}
+				if (this.\uE018 != null)
+				{
+					uEB.SpikeSamples = this.\uE018.SpikeSamples;
+				}
+				result = uEB;
+			}
+			return result;
+		}
+
+		// Token: 0x0600B2AD RID: 45741 RVA: 0x0037E51C File Offset: 0x0037C71C
+		protected override void SetMatchmakerStatus(string status, float? progress = null)
+		{
+			base.InvokeMatchingStatusChanged(status, progress);
+		}
+
+		// Token: 0x0600B2AE RID: 45742 RVA: 0x0037E528 File Offset: 0x0037C728
+		public virtual void CleanUp()
+		{
+			BaseLocalGame<TPlayerOwner>.\uE010(this.\uE020);
+		}
+
+		// Token: 0x0600B2AF RID: 45743 RVA: 0x0037E538 File Offset: 0x0037C738
+		protected static void \uE010(IDictionary<string, Player> players)
+		{
+			foreach (Player player in players.Values)
+			{
+				try
+				{
+					player.Dispose();
+					AssetPoolObject.ReturnToPool(player.gameObject, true);
+				}
+				catch (Exception exception)
+				{
+					Debug.LogException(exception);
+				}
+			}
+			players.Clear();
+		}
+
+		// Token: 0x0600B2B0 RID: 45744 RVA: 0x0037E5AC File Offset: 0x0037C7AC
+		protected int \uE011()
+		{
+			this.\uE022++;
+			return this.\uE022;
+		}
+
+		// Token: 0x0600B2B2 RID: 45746 RVA: 0x0037E63C File Offset: 0x0037C83C
+		GameObject \uE76F.\uE018()
+		{
+			return base.gameObject;
+		}
+
+		// Token: 0x0600B2B3 RID: 45747 RVA: 0x0037E644 File Offset: 0x0037C844
+		[CompilerGenerated]
+		internal static Task<\uE664.Location> \uE012(\uE3DF unparsedData)
+		{
+			return Task.FromResult<\uE664.Location>(unparsedData.ParseJsonTo(Array.Empty<JsonConverter>()));
+		}
+
+		// Token: 0x0600B2B4 RID: 45748 RVA: 0x0037E658 File Offset: 0x0037C858
+		[CompilerGenerated]
+		private bool \uE013(Player x)
+		{
+			return x.ProfileId == this.\uE003.Id;
+		}
+
+		// Token: 0x0600B2B5 RID: 45749 RVA: 0x0037E670 File Offset: 0x0037C870
+		[CompilerGenerated]
+		private void \uE014()
+		{
+			this.Stop(this.\uE003.Id, ExitStatus.Left, null, 0f);
+		}
+
+		// Token: 0x0600B2B6 RID: 45750 RVA: 0x0037E68C File Offset: 0x0037C88C
+		[CompilerGenerated]
+		private void \uE015(EDamageType controller)
+		{
+			this.\uE017.\uE045();
+			this.\uE001.HealthController.DiedEvent -= this.\uE015;
+			this.\uE009();
+		}
+
+		// Token: 0x0600B2B7 RID: 45751 RVA: 0x0037E6C0 File Offset: 0x0037C8C0
+		[CompilerGenerated]
+		private void \uE016(\uE702 p)
+		{
+			this.SetMatchmakerStatus(\uF1F8.\uE000(237399) + p.Stage.ToString(), new float?(p.Progress));
+		}
+
+		// Token: 0x04009FC9 RID: 40905
+		private bool \uE00A;
+
+		// Token: 0x04009FCA RID: 40906
+		[CompilerGenerated]
+		private GameDateTime \uE00B;
+
+		// Token: 0x04009FCB RID: 40907
+		[CompilerGenerated]
+		private GameWorld \uE00C;
+
+		// Token: 0x04009FCC RID: 40908
+		[CompilerGenerated]
+		private LocalPlayer \uE00D;
+
+		// Token: 0x04009FCD RID: 40909
+		protected DateTime \uE00E;
+
+		// Token: 0x04009FCE RID: 40910
+		private GameDateTime \uE00F;
+
+		// Token: 0x04009FCF RID: 40911
+		private GameUI \uE010;
+
+		// Token: 0x04009FD0 RID: 40912
+		protected \uE94D \uE011;
+
+		// Token: 0x04009FD1 RID: 40913
+		private Callback<ExitStatus, TimeSpan, \uEB21> \uE012;
+
+		// Token: 0x04009FD2 RID: 40914
+		private EndByExitTrigerScenario \uE013;
+
+		// Token: 0x04009FD3 RID: 40915
+		private EndByTimerScenario \uE014;
+
+		// Token: 0x04009FD4 RID: 40916
+		private Func<Task<LocalPlayer>> \uE015;
+
+		// Token: 0x04009FD5 RID: 40917
+		private Func<LocalPlayer, TPlayerOwner> \uE016;
+
+		// Token: 0x04009FD6 RID: 40918
+		protected TPlayerOwner \uE017;
+
+		// Token: 0x04009FD7 RID: 40919
+		protected \uE075 \uE018;
+
+		// Token: 0x04009FD8 RID: 40920
+		protected \uEB24 \uE019;
+
+		// Token: 0x04009FD9 RID: 40921
+		protected \uEB23 \uE01A;
+
+		// Token: 0x04009FDA RID: 40922
+		protected LocalRaidSettings \uE01B;
+
+		// Token: 0x04009FDB RID: 40923
+		private Action \uE01C;
+
+		// Token: 0x04009FDC RID: 40924
+		private DateTime \uE01D;
+
+		// Token: 0x04009FDD RID: 40925
+		private EDateTime \uE01E;
+
+		// Token: 0x04009FDE RID: 40926
+		private string \uE01F;
+
+		// Token: 0x04009FDF RID: 40927
+		protected readonly Dictionary<string, Player> \uE020 = new Dictionary<string, Player>();
+
+		// Token: 0x04009FE0 RID: 40928
+		protected \uE77E \uE021;
+
+		// Token: 0x04009FE1 RID: 40929
+		private int \uE022;
+
+		// Token: 0x04009FE2 RID: 40930
+		private readonly Dictionary<string, DateTime> \uE023 = new Dictionary<string, DateTime>
+		{
+			{
+				\uF1F8.\uE000(171252),
+				new DateTime(2016, 8, 4, 15, 28, 0, DateTimeKind.Utc)
+			},
+			{
+				\uF1F8.\uE000(171233),
+				new DateTime(2016, 8, 4, 3, 28, 0, DateTimeKind.Utc)
+			}
+		};
+
+		// Token: 0x04009FE3 RID: 40931
+		protected readonly BotsController \uE024 = new BotsController();
+
+		// Token: 0x04009FE4 RID: 40932
+		[CompilerGenerated]
+		private MenuUI \uE025;
+
+		// Token: 0x04009FE5 RID: 40933
+		[CompilerGenerated]
+		private Profile \uE026;
+
+		// Token: 0x04009FE6 RID: 40934
+		[CompilerGenerated]
+		private \uE664.Location \uE027;
+
+		// Token: 0x04009FE7 RID: 40935
+		[CompilerGenerated]
+		private Action \uE028;
+
+		// Token: 0x02001BB6 RID: 7094
+		private class \uE000
+		{
+		}
+
+		// Token: 0x02001BB8 RID: 7096
+		[CompilerGenerated]
+		private sealed class \uE001<\uE0B8> where \uE0B8 : BaseLocalGame<\uE0B9>
+		{
+			// Token: 0x0600B2C9 RID: 45769 RVA: 0x0037E7F4 File Offset: 0x0037C9F4
+			internal \uE0B9 \uE000(LocalPlayer player)
+			{
+				this.game.\uE001 = player;
+				\uE0B9 uE0B = EftGamePlayerOwner.Create<\uE0B9>(player, this.inputTree, this.insurance, this.backEndSession, this.gameUI, this.game.GameDateTime, this.location);
+				uE0B.OnLeave += this.game.\uE030;
+				return uE0B;
+			}
+
+			// Token: 0x04009FF6 RID: 40950
+			public \uE0B8 game;
+
+			// Token: 0x04009FF7 RID: 40951
+			public \uE9C4 inputTree;
+
+			// Token: 0x04009FF8 RID: 40952
+			public \uF116 insurance;
+
+			// Token: 0x04009FF9 RID: 40953
+			public \uE94D backEndSession;
+
+			// Token: 0x04009FFA RID: 40954
+			public GameUI gameUI;
+
+			// Token: 0x04009FFB RID: 40955
+			public \uE664.Location location;
+		}
+
+		// Token: 0x02001BB9 RID: 7097
+		[CompilerGenerated]
+		private sealed class \uE002
+		{
+			// Token: 0x0600B2CB RID: 45771 RVA: 0x0037E870 File Offset: 0x0037CA70
+			internal Task<LocalPlayer> \uE000()
+			{
+				BaseLocalGame<\uE0B9>.\uE002.\uE000 uE;
+				uE.<>t__builder = AsyncTaskMethodBuilder<LocalPlayer>.Create();
+				uE.<>4__this = this;
+				uE.<>1__state = -1;
+				uE.<>t__builder.Start<BaseLocalGame<\uE0B9>.\uE002.\uE000>(ref uE);
+				return uE.<>t__builder.Task;
+			}
+
+			// Token: 0x04009FFC RID: 40956
+			public \uEFF5 spawnSystem;
+
+			// Token: 0x04009FFD RID: 40957
+			public BaseLocalGame<\uE0B9> <>4__this;
+
+			// Token: 0x02001BBA RID: 7098
+			[StructLayout(LayoutKind.Auto)]
+			private struct \uE000 : IAsyncStateMachine
+			{
+				// Token: 0x0600B2CC RID: 45772 RVA: 0x0037E8C0 File Offset: 0x0037CAC0
+				void IAsyncStateMachine.MoveNext()
+				{
+					int num = this.<>1__state;
+					BaseLocalGame<\uE0B9>.\uE002 uE = this.<>4__this;
+					LocalPlayer result2;
+					try
+					{
+						TaskAwaiter<LocalPlayer> uE4;
+						if (num != 0)
+						{
+							ISpawnPoint spawnPoint = uE.spawnSystem.SelectSpawnPoint(ESpawnCategory.Player, uE.<>4__this.\uE003.Info.Side, null, null, null, null, uE.<>4__this.\uE003.Id);
+							uE.<>4__this.\uE01F = spawnPoint.Infiltration;
+							BaseLocalGame<\uE0B9> baseLocalGame = uE.<>4__this;
+							int num2 = uE.<>4__this.\uE022 + 1;
+							baseLocalGame.\uE022 = num2;
+							int playerId = num2;
+							Player.EUpdateMode armsUpdateMode = Player.EUpdateMode.Auto;
+							if (\uE2F9.Config.UseHandsFastAnimator)
+							{
+								armsUpdateMode = Player.EUpdateMode.Manual;
+							}
+							if (uE.<>4__this.\uE01B != null && uE.<>4__this.\uE01B.mode == ELocalMode.PVE_OFFLINE)
+							{
+								BaseLocalGame<\uE0B9>.\uE003 uE2 = new BaseLocalGame<\uE0B9>.\uE003();
+								BaseLocalGame<\uE0B9>.\uE003 uE3 = uE2;
+								\uE664.Location selectedLocation = uE.<>4__this.\uE01B.selectedLocation;
+								uE3.accessKeys = ((selectedLocation != null) ? selectedLocation.AccessKeys : null);
+								if (uE2.accessKeys != null && uE2.accessKeys.Length != 0)
+								{
+									IEnumerable<Item> playerItems = uE.<>4__this.\uE003.Inventory.GetPlayerItems(EPlayerItems.Equipment);
+									Item item = (playerItems != null) ? Enumerable.FirstOrDefault<Item>(playerItems, new Func<Item, bool>(uE2.\uE000)) : null;
+									if (item != null)
+									{
+										uE.<>4__this.\uE004(uE.<>4__this.\uE003, item.Id);
+									}
+								}
+							}
+							uE4 = uE.<>4__this.\uE02F(uE.<>4__this.\uE000, playerId, spawnPoint.Position, spawnPoint.Rotation, \uF1F8.\uE000(27509), "", EPointOfView.FirstPerson, uE.<>4__this.\uE003, false, uE.<>4__this.UpdateQueue, armsUpdateMode, Player.EUpdateMode.Auto, \uE2F9.Config.CharacterController.ClientPlayerMode, new Func<float>(BaseLocalGame<\uE0B9>.<>c.<>9.\uE001), new Func<float>(BaseLocalGame<\uE0B9>.<>c.<>9.\uE002), new \uE900(), uE.<>4__this.\uE011, (uE.<>4__this.\uE01B != null) ? uE.<>4__this.\uE01B.mode : ELocalMode.TRAINING).GetAwaiter();
+							if (!uE4.IsCompleted)
+							{
+								this.<>1__state = 0;
+								this.\uE000 = uE4;
+								this.<>t__builder.AwaitUnsafeOnCompleted<TaskAwaiter<LocalPlayer>, BaseLocalGame<\uE0B9>.\uE002.\uE000>(ref uE4, ref this);
+								return;
+							}
+						}
+						else
+						{
+							uE4 = this.\uE000;
+							this.\uE000 = default(TaskAwaiter<LocalPlayer>);
+							this.<>1__state = -1;
+						}
+						LocalPlayer result = uE4.GetResult();
+						result.Location = uE.<>4__this.\uE004.Id;
+						result.OnEpInteraction += uE.<>4__this.OnEpInteraction;
+						result2 = result;
+					}
+					catch (Exception exception)
+					{
+						this.<>1__state = -2;
+						this.<>t__builder.SetException(exception);
+						return;
+					}
+					this.<>1__state = -2;
+					this.<>t__builder.SetResult(result2);
+				}
+
+				// Token: 0x0600B2CD RID: 45773 RVA: 0x0037EBB8 File Offset: 0x0037CDB8
+				[DebuggerHidden]
+				void IAsyncStateMachine.SetStateMachine(IAsyncStateMachine stateMachine)
+				{
+					this.<>t__builder.SetStateMachine(stateMachine);
+				}
+
+				// Token: 0x04009FFE RID: 40958
+				public int <>1__state;
+
+				// Token: 0x04009FFF RID: 40959
+				public AsyncTaskMethodBuilder<LocalPlayer> <>t__builder;
+
+				// Token: 0x0400A000 RID: 40960
+				public BaseLocalGame<\uE0B9>.\uE002 <>4__this;
+
+				// Token: 0x0400A001 RID: 40961
+				private TaskAwaiter<LocalPlayer> \uE000;
+			}
+		}
+
+		// Token: 0x02001BBB RID: 7099
+		[CompilerGenerated]
+		private sealed class \uE003
+		{
+			// Token: 0x0600B2CF RID: 45775 RVA: 0x0037EBD0 File Offset: 0x0037CDD0
+			internal bool \uE000(Item equippedItem)
+			{
+				return Enumerable.Contains<string>(this.accessKeys, equippedItem.StringTemplateId);
+			}
+
+			// Token: 0x0400A002 RID: 40962
+			public string[] accessKeys;
+		}
+
+		// Token: 0x02001BBC RID: 7100
+		[CompilerGenerated]
+		private sealed class \uE004
+		{
+			// Token: 0x0600B2D1 RID: 45777 RVA: 0x0037EBEC File Offset: 0x0037CDEC
+			internal bool \uE000(Item item)
+			{
+				return item.Id == this.keyId;
+			}
+
+			// Token: 0x0400A003 RID: 40963
+			public string keyId;
+		}
+
+		// Token: 0x02001BBD RID: 7101
+		[CompilerGenerated]
+		private sealed class \uE005
+		{
+			// Token: 0x0600B2D3 RID: 45779 RVA: 0x0037EC08 File Offset: 0x0037CE08
+			internal void \uE000()
+			{
+				this.<>4__this.\uE010.TimerPanel.Close();
+				if (this.<>4__this.\uE017 != null)
+				{
+					this.<>4__this.\uE017.\uE045();
+				}
+				\uF0E6.Instance.CloseAllScreensForced();
+				this.<>4__this.\uE00F(this.profileId, this.exitStatus, this.exitName, this.delay).HandleExceptions();
+			}
+
+			// Token: 0x0400A004 RID: 40964
+			public BaseLocalGame<\uE0B9> <>4__this;
+
+			// Token: 0x0400A005 RID: 40965
+			public string profileId;
+
+			// Token: 0x0400A006 RID: 40966
+			public ExitStatus exitStatus;
+
+			// Token: 0x0400A007 RID: 40967
+			public string exitName;
+
+			// Token: 0x0400A008 RID: 40968
+			public float delay;
+		}
+
+		// Token: 0x02001BBE RID: 7102
+		[CompilerGenerated]
+		private sealed class \uE006
+		{
+			// Token: 0x0600B2D5 RID: 45781 RVA: 0x0037ECA0 File Offset: 0x0037CEA0
+			internal void \uE000()
+			{
+				this.<>4__this.\uE012(new Result<ExitStatus, TimeSpan, \uEB21>(this.exitStatus, this.duration, this.<>4__this.\uE032()));
+				UIEventSystem.Instance.Enable();
+				if (this.<>4__this.\uE018 != null)
+				{
+					this.<>4__this.\uE018.Dispose();
+					this.<>4__this.\uE018 = null;
+				}
+			}
+
+			// Token: 0x0400A009 RID: 40969
+			public BaseLocalGame<\uE0B9> <>4__this;
+
+			// Token: 0x0400A00A RID: 40970
+			public ExitStatus exitStatus;
+
+			// Token: 0x0400A00B RID: 40971
+			public TimeSpan duration;
+		}
+	}
+}

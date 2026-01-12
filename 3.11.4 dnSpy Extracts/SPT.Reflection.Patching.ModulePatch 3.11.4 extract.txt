@@ -1,0 +1,136 @@
+using System;
+using System.Collections.Generic;
+using System.Reflection;
+using BepInEx.Logging;
+using HarmonyLib;
+
+namespace SPT.Reflection.Patching
+{
+	// Token: 0x0200000C RID: 12
+	public abstract class ModulePatch
+	{
+		// Token: 0x1700000C RID: 12
+		// (get) Token: 0x06000021 RID: 33 RVA: 0x000022D9 File Offset: 0x000004D9
+		// (set) Token: 0x06000022 RID: 34 RVA: 0x000022E0 File Offset: 0x000004E0
+		private protected static ManualLogSource Logger { protected get; private set; }
+
+		// Token: 0x06000023 RID: 35 RVA: 0x000022E8 File Offset: 0x000004E8
+		protected ModulePatch() : this(null)
+		{
+			if (ModulePatch.Logger == null)
+			{
+				ModulePatch.Logger = BepInEx.Logging.Logger.CreateLogSource("ModulePatch");
+			}
+		}
+
+		// Token: 0x06000024 RID: 36 RVA: 0x00002308 File Offset: 0x00000508
+		protected ModulePatch(string name = null)
+		{
+			this._harmony = new Harmony(name ?? base.GetType().Name);
+			this._prefixList = this.GetPatchMethods(typeof(PatchPrefixAttribute));
+			this._postfixList = this.GetPatchMethods(typeof(PatchPostfixAttribute));
+			this._transpilerList = this.GetPatchMethods(typeof(PatchTranspilerAttribute));
+			this._finalizerList = this.GetPatchMethods(typeof(PatchFinalizerAttribute));
+			this._ilmanipulatorList = this.GetPatchMethods(typeof(PatchILManipulatorAttribute));
+			if (this._prefixList.Count == 0 && this._postfixList.Count == 0 && this._transpilerList.Count == 0 && this._finalizerList.Count == 0 && this._ilmanipulatorList.Count == 0)
+			{
+				throw new Exception(this._harmony.Id + ": At least one of the patch methods must be specified");
+			}
+		}
+
+		// Token: 0x06000025 RID: 37
+		protected abstract MethodBase GetTargetMethod();
+
+		// Token: 0x06000026 RID: 38 RVA: 0x00002400 File Offset: 0x00000600
+		private List<HarmonyMethod> GetPatchMethods(Type attributeType)
+		{
+			Type type = base.GetType();
+			List<HarmonyMethod> list = new List<HarmonyMethod>();
+			foreach (MethodInfo methodInfo in type.GetMethods(BindingFlags.DeclaredOnly | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic))
+			{
+				if (methodInfo.GetCustomAttribute(attributeType) != null)
+				{
+					list.Add(new HarmonyMethod(methodInfo));
+				}
+			}
+			return list;
+		}
+
+		// Token: 0x06000027 RID: 39 RVA: 0x0000244C File Offset: 0x0000064C
+		public void Enable()
+		{
+			MethodBase targetMethod = this.GetTargetMethod();
+			if (targetMethod == null)
+			{
+				throw new InvalidOperationException(this._harmony.Id + ": TargetMethod is null");
+			}
+			try
+			{
+				foreach (HarmonyMethod harmonyMethod in this._prefixList)
+				{
+					this._harmony.Patch(targetMethod, harmonyMethod, null, null, null, null);
+				}
+				foreach (HarmonyMethod harmonyMethod2 in this._postfixList)
+				{
+					this._harmony.Patch(targetMethod, null, harmonyMethod2, null, null, null);
+				}
+				foreach (HarmonyMethod harmonyMethod3 in this._transpilerList)
+				{
+					this._harmony.Patch(targetMethod, null, null, harmonyMethod3, null, null);
+				}
+				foreach (HarmonyMethod harmonyMethod4 in this._finalizerList)
+				{
+					this._harmony.Patch(targetMethod, null, null, null, harmonyMethod4, null);
+				}
+				foreach (HarmonyMethod harmonyMethod5 in this._ilmanipulatorList)
+				{
+					this._harmony.Patch(targetMethod, null, null, null, null, harmonyMethod5);
+				}
+				ModulePatch.Logger.LogInfo("Enabled patch " + this._harmony.Id);
+			}
+			catch (Exception ex)
+			{
+				ModulePatch.Logger.LogError(string.Format("{0}: {1}", this._harmony.Id, ex));
+				throw new Exception(this._harmony.Id + ":", ex);
+			}
+		}
+
+		// Token: 0x06000028 RID: 40 RVA: 0x000026C8 File Offset: 0x000008C8
+		public void Disable()
+		{
+			MethodBase targetMethod = this.GetTargetMethod();
+			if (targetMethod == null)
+			{
+				throw new InvalidOperationException(this._harmony.Id + ": TargetMethod is null");
+			}
+			try
+			{
+				this._harmony.Unpatch(targetMethod, 0, this._harmony.Id);
+				ModulePatch.Logger.LogInfo("Disabled patch " + this._harmony.Id);
+			}
+			catch (Exception ex)
+			{
+				ModulePatch.Logger.LogError(string.Format("{0}: {1}", this._harmony.Id, ex));
+				throw new Exception(this._harmony.Id + ":", ex);
+			}
+		}
+
+		// Token: 0x04000010 RID: 16
+		private readonly Harmony _harmony;
+
+		// Token: 0x04000011 RID: 17
+		private readonly List<HarmonyMethod> _prefixList;
+
+		// Token: 0x04000012 RID: 18
+		private readonly List<HarmonyMethod> _postfixList;
+
+		// Token: 0x04000013 RID: 19
+		private readonly List<HarmonyMethod> _transpilerList;
+
+		// Token: 0x04000014 RID: 20
+		private readonly List<HarmonyMethod> _finalizerList;
+
+		// Token: 0x04000015 RID: 21
+		private readonly List<HarmonyMethod> _ilmanipulatorList;
+	}
+}
